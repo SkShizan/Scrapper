@@ -4,3 +4,13 @@ beautifulsoup4
 pandas
 google-api-python-client
 rq
+python-dotenv
+curl-cffi
+beautifulsoup4
+curl-cffi
+Flask
+google-api-python-client
+pandas
+python-dotenv
+requests
+rq
