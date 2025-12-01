@@ -107,7 +107,7 @@
             margin-bottom: 0.6rem; 
             font-size: 0.9rem;
         }
-        .form-control { 
+        .form-control, .form-select { 
             border-radius: 0.6rem; 
             transition: all 0.25s ease;
             border: 1px solid var(--border-color); 
@@ -115,7 +115,7 @@
             font-size: 0.95rem;
             background-color: var(--bg-card); 
         }
-        .form-control:focus {
+        .form-control:focus, .form-select:focus {
             border-color: var(--primary-color);
             /* Updated shadow to match new primary color */
             box-shadow: 0 0 0 3px rgba(183, 116, 102, 0.15); 
@@ -218,7 +218,7 @@
         
         <div class="dashboard-header" data-aos="fade-down">
             <h1><i class="bi bi-robot"></i> Lead Scraper</h1>
-            <p>Find and stack leads from Google Search.</p>
+            <p>Find and stack leads from Google, Social Media, and more.</p>
         </div>
 
         <div class="data-card" data-aos="fade-up" data-aos-delay="100">
@@ -236,10 +236,24 @@
                         <label for="cx-input" class="form-label">Custom Search Engine Key</label>
                         <input type="text" id="cx-input" class="form-control" placeholder="Enter your Google CX ID">
                     </div>
+                    
                     <div class="col-md-12">
                          <label for="location-input" class="form-label">Target Location</label>
                         <input type="text" id="location-input" class="form-control" placeholder="e.g., 'las vegas', 'new york', 'kolkata'">
                     </div>
+
+                    <div class="col-md-12">
+                        <label for="platform-select" class="form-label">Source Platform</label>
+                        <select id="platform-select" class="form-select">
+                            <option value="google" selected>Google Search (General)</option>
+                            <option value="linkedin">LinkedIn (X-Ray)</option>
+                            <option value="facebook">Facebook (Business Pages)</option>
+                            <option value="instagram">Instagram</option>
+                            <option value="yellowpages">Yellow Pages (Direct - No API Key)</option>
+                        </select>
+                        <small class="text-muted">Social sources use your Google API Key for X-Ray searches. Yellow Pages does not require keys.</small>
+                    </div>
+
                      <div class="col-md-12">
                          <label for="query-input" class="form-label">Search Query</label>
                         <input type="text" id="query-input" class="form-control" value='"Healthcare" "email"'>
@@ -296,14 +310,13 @@
             offset: 50
         });
 
-        // --- All your original JavaScript logic is 100% preserved ---
-        // (It already uses CSS variables, so it works perfectly with the new theme)
         document.addEventListener('DOMContentLoaded', function() {
             // Get references to all our UI elements
             const apiKeyInput = document.getElementById('api-key-input');
             const cxInput = document.getElementById('cx-input');
             const queryInput = document.getElementById('query-input');
             const locationInput = document.getElementById('location-input');
+            const platformSelect = document.getElementById('platform-select'); // NEW
             
             const searchBtn = document.getElementById('search-btn');
             const downloadBtn = document.getElementById('download-btn');
@@ -320,15 +333,25 @@
                 const apiKey = apiKeyInput.value;
                 const cx = cxInput.value;
                 const location = locationInput.value;
+                const platform = platformSelect.value; // NEW
 
-                if (!query || !apiKey || !cx || !location) {
-                    statusText.innerText = 'Error: Please fill in API Key, CX ID, Location, and Query.';
+                // Validation Update: YellowPages skips API Key checks
+                if (platform !== 'yellowpages') {
+                    if (!apiKey || !cx) {
+                         statusText.innerText = 'Error: API Key and CX ID are required for Google/Social searches.';
+                         statusText.style.color = 'var(--color-danger)';
+                         return;
+                    }
+                }
+
+                if (!query || !location) {
+                    statusText.innerText = 'Error: Please fill in Location and Search Query.';
                     statusText.style.color = 'var(--color-danger)';
                     return;
                 }
 
                 const fullQuery = `${query} "${location}"`;
-                statusText.innerText = `Searching for: ${fullQuery}... This may take a moment...`;
+                statusText.innerText = `Searching ${platform} for: ${fullQuery}... This may take a moment...`;
                 statusText.style.color = 'var(--text-muted)';
                 searchBtn.disabled = true;
                 searchBtn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Searching...`;
@@ -338,10 +361,11 @@
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ 
-                            query: fullQuery, 
+                            query: query,   // Clean query 
                             apiKey: apiKey, 
                             cx: cx,
-                            location: location
+                            location: location,
+                            platform: platform // NEW: Send platform selection
                         })
                     });
 
@@ -378,7 +402,7 @@
                             const cellWebsite = row.insertCell(2);
                             const link = document.createElement('a');
                             link.href = lead.Website;
-                            link.textContent = lead.Website;
+                            link.textContent = lead.Website !== 'N/A' ? lead.Website : 'N/A';
                             link.target = "_blank"; // Open in new tab
                             cellWebsite.appendChild(link);
                             
