@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title> Lead Scraper</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.css" rel="stylesheet">
+
+    <style>
+        /* --- 1. New "God Level" Palette (Vista HRMS Theme) --- */
+        :root {
+            /* Your Base Colors Mapped */
+            --primary-color: #B77466;      /* Main terracotta action color */
+            --bg-page: #FFFBF2;            /* Lightest cream, derived from #FFE1AF */
+            --border-color: #E2B59A;       /* Light peach/beige for borders */
+            --text-muted: #957C62;         /* Muted brown for secondary text */
+
+            /* Derived Colors for a Full Theme */
+            --primary-color-dark: #9A5F51; /* Darker terracotta for hover */
+            --bg-card: #FFFFFF;            /* Keep cards crisp white */
+            --bg-card-header: #FDF8F5;     /* Light tinted beige, from #E2B59A */
+            --text-dark: #4F3E3A;          /* Dark, warm brown (high contrast) */
+            --text-light: #ffffff;
+            --card-shadow: 0 8px 25px rgba(149, 124, 98, 0.1); /* Shadow from --text-muted */
+            --card-border-radius: 0.75rem;
+
+            /* Status Colors (Keep for JS) */
+            --color-danger: #dc3545;
+            --color-danger-soft: #FEE2E2;
+            --color-success: #198754;
+            --color-success-soft: #DEF7EC;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-page); /* Page background */
+            color: var(--text-dark);
+            line-height: 1.6;
+            /* FIX: Better, responsive padding */
+            padding: 3rem 1.5rem; 
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        /* --- 2. Header --- */
+        .dashboard-header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+        .dashboard-header h1 {
+            font-weight: 800;
+            font-size: 2.5rem;
+            color: var(--text-dark);
+            margin-bottom: 0.25rem;
+        }
+        .dashboard-header i {
+            color: var(--primary-color);
+            margin-right: 0.5rem;
+        }
+         .dashboard-header p {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+        }
+        
+        /* --- 3. Base Card Style --- */
+        .data-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--card-border-radius);
+            box-shadow: var(--card-shadow);
+            overflow: hidden;
+        }
+        .data-card-header {
+            padding: 1.25rem 1.75rem;
+            background-color: var(--bg-card-header);
+            border-bottom: 1px solid var(--border-color);
+        }
+        .data-card-header h5 {
+            margin-bottom: 0;
+            font-weight: 700;
+            color: var(--primary-color);
+            font-size: 1.1rem;
+        }
+        .data-card-header i {
+            margin-right: 0.75rem;
+            font-size: 1.2em;
+            vertical-align: middle;
+        }
+        .data-card-body {
+            padding: 2rem;
+        }
+        
+        /* --- 4. Form Elements --- */
+        .form-label {
+            font-weight: 600; 
+            color: var(--text-dark); 
+            margin-bottom: 0.6rem; 
+            font-size: 0.9rem;
+        }
+        .form-control { 
+            border-radius: 0.6rem; 
+            transition: all 0.25s ease;
+            border: 1px solid var(--border-color); 
+            padding: 0.8rem 1.1rem; 
+            font-size: 0.95rem;
+            background-color: var(--bg-card); 
+        }
+        .form-control:focus {
+            border-color: var(--primary-color);
+            /* Updated shadow to match new primary color */
+            box-shadow: 0 0 0 3px rgba(183, 116, 102, 0.15); 
+            outline: none;
+        }
+        
+        /* Buttons */
+        .btn-search {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color); 
+            color: var(--text-light); 
+            font-weight: 600; 
+            padding: 0.75rem 1.75rem; 
+            border-radius: 0.5rem;
+            transition: all 0.3s ease;
+            /* Updated shadow to match new primary color */
+            box-shadow: 0 4px 12px rgba(183, 116, 102, 0.2);
+        }
+        .btn-search:hover:not(:disabled) { 
+            transform: translateY(-2px); 
+            /* Updated shadow and color */
+            box-shadow: 0 7px 18px rgba(183, 116, 102, 0.3); 
+            color: var(--text-light);
+            background-color: var(--primary-color-dark);
+            border-color: var(--primary-color-dark);
+        }
+        .btn-download {
+            background-color: var(--color-success);
+            border-color: var(--color-success);
+            color: white;
+            font-weight: 600;
+            padding: 0.75rem 1.75rem; 
+            border-radius: 0.5rem;
+            transition: all 0.3s ease;
+        }
+        .btn-download:hover {
+            background-color: #157347;
+            border-color: #146c43;
+            transform: translateY(-2px);
+        }
+        
+        /* Status Text */
+        #status-text {
+            text-align: center;
+            font-style: italic;
+            color: var(--text-muted);
+            margin: 1.5rem 0;
+            min-height: 1.5em;
+            font-weight: 500;
+        }
+        
+        /* --- 5. Results Table Card --- */
+        .results-card {
+            margin-top: 2rem;
+        }
+        .table-wrapper {
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+        .results-table {
+            margin-bottom: 0;
+            width: 100%;
+        }
+        .results-table thead th {
+            font-weight: 600;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            border-bottom: 2px solid var(--border-color); 
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background-color: var(--bg-card-header); /* Use theme variable */
+            padding: 0.9rem 1.5rem;
+            position: sticky; /* Keep header visible on scroll */
+            top: 0;
+            z-index: 10;
+        }
+        .results-table tbody td {
+            vertical-align: middle;
+            border-top: 1px solid var(--border-color);
+            padding: 1rem 1.5rem;
+            font-size: 0.95rem;
+            transition: background-color 0.2s ease;
+        }
+        .results-table tbody tr:hover {
+            background-color: var(--bg-card-header); /* Use theme variable */
+        }
+        .results-table td a {
+            color: var(--primary-color);
+            font-weight: 500;
+            text-decoration: none;
+        }
+        .results-table td a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        
+        <div class="dashboard-header" data-aos="fade-down">
+            <h1><i class="bi bi-robot"></i> Lead Scraper</h1>
+            <p>Find and stack leads from Google Search.</p>
+        </div>
+
+        <div class="data-card" data-aos="fade-up" data-aos-delay="100">
+            <div class="data-card-header">
+                <h5><i class="bi bi-gear-fill"></i> Search Configuration</h5>
+            </div>
+            
+            <div class="data-card-body"> 
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="api-key-input" class="form-label">Google Search API Key</label>
+                        <input type="text" id="api-key-input" class="form-control" placeholder="Enter your Google API Key">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="cx-input" class="form-label">Custom Search Engine Key</label>
+                        <input type="text" id="cx-input" class="form-control" placeholder="Enter your Google CX ID">
+                    </div>
+                    <div class="col-md-12">
+                         <label for="location-input" class="form-label">Target Location</label>
+                        <input type="text" id="location-input" class="form-control" placeholder="e.g., 'las vegas', 'new york', 'kolkata'">
+                    </div>
+                     <div class="col-md-12">
+                         <label for="query-input" class="form-label">Search Query</label>
+                        <input type="text" id="query-input" class="form-control" value='"Healthcare" "email"'>
+                        <small class="form-text text-muted">Use quotes for exact matches. (e.g., "Restaurants" "contact")</small>
+                    </div>
+                    
+                    <div class="col-12 d-flex justify-content-between align-items-center border-top pt-4 mt-3">
+                        <button id="search-btn" class="btn btn-search btn-lg">
+                            <i class="bi bi-search"></i> Search & Stack Results
+                        </button>
+                        <button id="download-btn" class="btn btn-download btn-lg" style="display: none;">
+                            <i class="bi bi-download"></i> Download All Leads
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="status-text" data-aos="fade-up" data-aos-delay="150">Enter your credentials and start a search.</div>
+
+        <div class="data-card results-card" data-aos="fade-up" data-aos-delay="200">
+            <div class="data-card-header">
+                <h5 class="mb-0"><i class="bi bi-stack"></i> Stacked Results</h5>
+            </div>
+            <div class="table-wrapper">
+                <table class="table results-table table-hover">
+                    <thead>
+                        <tr>
+                            <th class="ps-4">Name</th>
+                            <th>Email</th>
+                            <th>Website</th>
+                            <th class="pe-4">Location</th>
+                        </tr>
+                    </thead>
+                    <tbody id="results-tbody">
+                        <tr id="no-results-placeholder">
+                            <td colspan="4" class="text-center text-muted p-4">
+                                <i class="bi bi-inbox-fill" style="font-size: 2rem; color: var(--border-color);"></i>
+                                <p class="mb-0 mt-2">Your stacked leads will appear here...</p>
+                            </td>
+                         </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.js"></script>
+    <script>
+        AOS.init({
+            duration: 600,
+            once: true,
+            offset: 50
+        });
+
+        // --- All your original JavaScript logic is 100% preserved ---
+        // (It already uses CSS variables, so it works perfectly with the new theme)
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get references to all our UI elements
+            const apiKeyInput = document.getElementById('api-key-input');
+            const cxInput = document.getElementById('cx-input');
+            const queryInput = document.getElementById('query-input');
+            const locationInput = document.getElementById('location-input');
+            
+            const searchBtn = document.getElementById('search-btn');
+            const downloadBtn = document.getElementById('download-btn');
+            const statusText = document.getElementById('status-text');
+            
+            const resultsTbody = document.getElementById('results-tbody');
+            const noResultsPlaceholder = document.getElementById('no-results-placeholder');
+
+            let totalLeadsFound = 0;
+
+            // --- Search Button Logic ---
+            searchBtn.addEventListener('click', async () => {
+                const query = queryInput.value;
+                const apiKey = apiKeyInput.value;
+                const cx = cxInput.value;
+                const location = locationInput.value;
+
+                if (!query || !apiKey || !cx || !location) {
+                    statusText.innerText = 'Error: Please fill in API Key, CX ID, Location, and Query.';
+                    statusText.style.color = 'var(--color-danger)';
+                    return;
+                }
+
+                const fullQuery = `${query} "${location}"`;
+                statusText.innerText = `Searching for: ${fullQuery}... This may take a moment...`;
+                statusText.style.color = 'var(--text-muted)';
+                searchBtn.disabled = true;
+                searchBtn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Searching...`;
+
+                try {
+                    const response = await fetch('/search', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            query: fullQuery, 
+                            apiKey: apiKey, 
+                            cx: cx,
+                            location: location
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errData = await response.json();
+                        throw new Error(errData.error || 'API search failed.');
+                    }
+
+                    const newLeads = await response.json();
+
+                    if (newLeads.length === 0) {
+                        statusText.innerText = 'Search complete. No new leads found for that query.';
+                        statusText.style.color = 'var(--text-muted)';
+                    } else {
+                        // Remove the placeholder if it exists
+                        if (noResultsPlaceholder) {
+                            noResultsPlaceholder.style.display = 'none';
+                        }
+                        
+                        statusText.innerText = `Success! Found ${newLeads.length} new leads. Stacking them below.`;
+                        statusText.style.color = 'var(--color-success)';
+                        
+                        newLeads.forEach(lead => {
+                            const row = resultsTbody.insertRow(0); // insertRow(0) prepends to the top
+
+                            // Create cells for the row
+                            const cellName = row.insertCell(0);
+                            cellName.textContent = lead.Name;
+                            cellName.className = 'ps-4';
+                            
+                            const cellEmail = row.insertCell(1);
+                            cellEmail.textContent = lead.Email;
+                            
+                            const cellWebsite = row.insertCell(2);
+                            const link = document.createElement('a');
+                            link.href = lead.Website;
+                            link.textContent = lead.Website;
+                            link.target = "_blank"; // Open in new tab
+                            cellWebsite.appendChild(link);
+                            
+                            const cellLocation = row.insertCell(3);
+                            cellLocation.textContent = lead.Location;
+                            cellLocation.className = 'pe-4';
+                        });
+
+                        // Show download button
+                        totalLeadsFound += newLeads.length;
+                        downloadBtn.style.display = 'block';
+                        downloadBtn.innerHTML = `<i class="bi bi-download"></i> Download All ${totalLeadsFound} Leads`;
+                    }
+
+                } catch (error) {
+                    console.error('Search error:', error);
+                    statusText.innerText = `Error: ${error.message}`;
+                    statusText.style.color = 'var(--color-danger)';
+                } finally {
+                    searchBtn.disabled = false;
+                    searchBtn.innerHTML = '<i class="bi bi-search"></i> Search & Stack Results';
+                }
+            });
+
+            // --- Download Button Logic ---
+            downloadBtn.addEventListener('click', () => {
+                window.location.href = '/download';
+            });
+        });
+    </script>
+</body>
+</html>
