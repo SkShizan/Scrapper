@@ -6,7 +6,7 @@ class SocialMediaScraper(BaseScraper):
         self.platform = platform
         self.google_scraper = GoogleScraper() # Composition: We use the existing tool!
 
-    def search(self, query, location, api_key, cx):
+    def search(self, query, location, api_key=None, cx=None):
         # 1. Determine the "Dork" (search operator)
         site_operator = ""
         if self.platform == 'linkedin':

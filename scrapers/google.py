@@ -22,7 +22,7 @@ class GoogleScraper(BaseScraper):
         except Exception:
             return False
 
-    def search(self, query, location, api_key, cx):
+    def search(self, query, location, api_key=None, cx=None):
         print(f"--- [GoogleScraper] Starting Search for: {query} in {location} ---")
         
         # Combine query if location isn't already inside it
