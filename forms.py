@@ -24,8 +24,8 @@ class SignupForm(FlaskForm):
     
     def validate_email(self, field):
         user = User.query.filter_by(email=field.data.lower()).first()
-        if user:
-            raise ValidationError('An account with this email already exists')
+        if user and user.email_verified:
+            raise ValidationError('An account with this email already exists. Please log in instead.')
 
 
 class VerifyOTPForm(FlaskForm):
