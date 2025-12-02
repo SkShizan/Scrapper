@@ -11,3 +11,16 @@ pandas
 python-dotenv
 requests
 rq
+beautifulsoup4
+curl-cffi
+email-validator
+Flask
+Flask-Login
+Flask-SQLAlchemy
+Flask-WTF
+google-api-python-client
+pandas
+python-dotenv
+requests
+Werkzeug
+wtforms
