@@ -36,7 +36,7 @@ class GoogleScraper(BaseScraper):
             page = 0
             
             # Limiting to 5 pages (50 results) to save credits, adjust as needed
-            while page < 5: 
+            while page < 10: 
                 start_index = (page * 10) + 1
                 print(f"Searching Page {page + 1}...")
 

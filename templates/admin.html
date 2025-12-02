@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - Lead Scraper{% endblock %}
+
+{% block extra_styles %}
+.admin-header {
+    margin-bottom: 2rem;
+}
+.admin-header h1 {
+    font-weight: 800;
+    color: var(--text-dark);
+}
+.stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--card-border-radius);
+    padding: 1.5rem;
+    text-align: center;
+}
+.stat-number {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: var(--primary-color);
+}
+.stat-label {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+.user-table {
+    width: 100%;
+}
+.user-table th {
+    background-color: var(--bg-card-header);
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    letter-spacing: 0.5px;
+    padding: 1rem;
+    border-bottom: 2px solid var(--border-color);
+}
+.user-table td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: middle;
+}
+.badge-status {
+    padding: 0.4rem 0.8rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    font-size: 0.8rem;
+}
+.badge-pending {
+    background-color: #FEF3CD;
+    color: #856404;
+}
+.badge-active {
+    background-color: var(--color-success-soft);
+    color: var(--color-success);
+}
+.badge-disabled {
+    background-color: var(--color-danger-soft);
+    color: var(--color-danger);
+}
+.badge-admin {
+    background-color: #D1E7DD;
+    color: #0A3622;
+}
+.action-btn {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+    border-radius: 0.4rem;
+}
+{% endblock %}
+
+{% block content %}
+<div class="admin-header">
+    <h1><i class="bi bi-shield-check me-2" style="color: var(--primary-color);"></i>Admin Dashboard</h1>
+    <p class="text-muted">Manage user accounts and approvals</p>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-4 mb-3">
+        <div class="stat-card">
+            <div class="stat-number">{{ pending_users|length }}</div>
+            <div class="stat-label">Pending Approvals</div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="stat-card">
+            <div class="stat-number">{{ all_users|selectattr('is_approved')|list|length }}</div>
+            <div class="stat-label">Approved Users</div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="stat-card">
+            <div class="stat-number">{{ all_users|length }}</div>
+            <div class="stat-label">Total Users</div>
+        </div>
+    </div>
+</div>
+
+{% if pending_users %}
+<div class="data-card mb-4">
+    <div class="data-card-header">
+        <h5><i class="bi bi-hourglass-split me-2"></i>Pending Approval Requests ({{ pending_users|length }})</h5>
+    </div>
+    <div class="table-responsive">
+        <table class="user-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Signed Up</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in pending_users %}
+                <tr>
+                    <td><strong>{{ user.name }}</strong></td>
+                    <td>{{ user.email }}</td>
+                    <td>{{ user.created_at.strftime('%b %d, %Y %H:%M') }}</td>
+                    <td>
+                        <form method="POST" action="{{ url_for('approve_user', user_id=user.id) }}" style="display: inline;">
+                            <button type="submit" class="btn btn-success action-btn">
+                                <i class="bi bi-check-lg me-1"></i>Approve
+                            </button>
+                        </form>
+                        <form method="POST" action="{{ url_for('reject_user', user_id=user.id) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to reject and delete this user?');">
+                            <button type="submit" class="btn btn-danger action-btn">
+                                <i class="bi bi-x-lg me-1"></i>Reject
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<div class="data-card">
+    <div class="data-card-header">
+        <h5><i class="bi bi-people me-2"></i>All Users</h5>
+    </div>
+    <div class="table-responsive">
+        <table class="user-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Role</th>
+                    <th>Joined</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in all_users %}
+                <tr>
+                    <td><strong>{{ user.name }}</strong></td>
+                    <td>{{ user.email }}</td>
+                    <td>
+                        {% if not user.email_verified %}
+                            <span class="badge-status badge-pending">Unverified</span>
+                        {% elif not user.is_approved %}
+                            <span class="badge-status badge-pending">Pending</span>
+                        {% elif not user.is_active %}
+                            <span class="badge-status badge-disabled">Disabled</span>
+                        {% else %}
+                            <span class="badge-status badge-active">Active</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if user.is_admin %}
+                            <span class="badge-status badge-admin">Admin</span>
+                        {% else %}
+                            <span class="text-muted">User</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ user.created_at.strftime('%b %d, %Y') }}</td>
+                    <td>
+                        {% if user.email_verified and not user.is_approved %}
+                            <form method="POST" action="{{ url_for('approve_user', user_id=user.id) }}" style="display: inline;">
+                                <button type="submit" class="btn btn-success action-btn" title="Approve">
+                                    <i class="bi bi-check-lg"></i>
+                                </button>
+                            </form>
+                        {% endif %}
+                        
+                        <form method="POST" action="{{ url_for('toggle_user_status', user_id=user.id) }}" style="display: inline;">
+                            <button type="submit" class="btn btn-{{ 'warning' if user.is_active else 'success' }} action-btn" title="{{ 'Disable' if user.is_active else 'Enable' }}">
+                                <i class="bi bi-{{ 'pause' if user.is_active else 'play' }}-fill"></i>
+                            </button>
+                        </form>
+                        
+                        <form method="POST" action="{{ url_for('toggle_admin_status', user_id=user.id) }}" style="display: inline;">
+                            <button type="submit" class="btn btn-{{ 'secondary' if user.is_admin else 'info' }} action-btn" title="{{ 'Remove Admin' if user.is_admin else 'Make Admin' }}">
+                                <i class="bi bi-shield{{ '-check' if user.is_admin else '' }}"></i>
+                            </button>
+                        </form>
+                        
+                        <form method="POST" action="{{ url_for('reject_user', user_id=user.id) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to permanently delete this user?');">
+                            <button type="submit" class="btn btn-outline-danger action-btn" title="Delete">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not all_users %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted py-4">
+                        <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                        <p class="mb-0 mt-2">No users yet</p>
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

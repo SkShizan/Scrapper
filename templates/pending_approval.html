@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Pending Approval - Lead Scraper{% endblock %}
+
+{% block extra_styles %}
+.status-container {
+    max-width: 500px;
+    margin: 4rem auto;
+    text-align: center;
+}
+.status-icon {
+    font-size: 5rem;
+    color: var(--color-warning);
+    margin-bottom: 1.5rem;
+}
+.status-title {
+    font-weight: 800;
+    color: var(--text-dark);
+    font-size: 2rem;
+    margin-bottom: 1rem;
+}
+.status-message {
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    line-height: 1.8;
+}
+{% endblock %}
+
+{% block content %}
+<div class="status-container">
+    <div class="data-card">
+        <div class="data-card-body py-5">
+            <i class="bi bi-hourglass-split status-icon"></i>
+            <h1 class="status-title">Account Pending Approval</h1>
+            <p class="status-message">
+                Your email has been verified successfully.<br>
+                Your account is now waiting for administrator approval.<br>
+                You'll receive an email once your account is approved.
+            </p>
+            <div class="mt-4">
+                <a href="{{ url_for('logout') }}" class="btn btn-outline-primary">
+                    <i class="bi bi-box-arrow-right me-2"></i>Logout
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
