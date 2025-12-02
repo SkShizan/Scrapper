@@ -72,8 +72,30 @@ def signup():
     
     form = SignupForm()
     if form.validate_on_submit():
+        email = form.email.data.lower()
+        existing_user = User.query.filter_by(email=email).first()
+        
+        if existing_user:
+            if not existing_user.email_verified:
+                existing_user.set_password(form.password.data)
+                otp = existing_user.generate_otp()
+                db.session.commit()
+                
+                if email_service.is_configured():
+                    email_service.send_otp_email(existing_user.email, otp, existing_user.name)
+                    flash('Account already exists. A new verification code has been sent to your email.', 'info')
+                else:
+                    flash(f'Account already exists. SMTP not configured. Your OTP is: {otp}', 'warning')
+                
+                login_user(existing_user)
+                session['pending_verification_user_id'] = existing_user.id
+                return redirect(url_for('verify_otp'))
+            else:
+                flash('An account with this email already exists. Please log in instead.', 'error')
+                return render_template('signup.html', form=form)
+        
         user = User(
-            email=form.email.data.lower(),
+            email=email,
             name=form.name.data
         )
         user.set_password(form.password.data)
@@ -362,8 +384,8 @@ def toggle_admin_status(user_id):
 
 
 def create_superuser():
-    admin_email = os.environ.get('ADMIN_EMAIL', 'admin@example.com')
-    admin_password = os.environ.get('ADMIN_PASSWORD', 'admin123')
+    admin_email = os.environ.get('ADMIN_EMAIL', 'shizankhan011@gmail.com')
+    admin_password = os.environ.get('ADMIN_PASSWORD', 'Nafis@@123##456')
     
     existing = User.query.filter_by(email=admin_email).first()
     if not existing:

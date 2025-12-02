@@ -5,10 +5,10 @@ import os
 
 class EmailService:
     def __init__(self):
-        self.smtp_host = os.environ.get('SMTP_HOST', 'smtp.gmail.com')
+        self.smtp_host = os.environ.get('SMTP_HOST', 'smtp.hostinger.com')
         self.smtp_port = int(os.environ.get('SMTP_PORT', 587))
-        self.smtp_user = os.environ.get('SMTP_USER', '')
-        self.smtp_password = os.environ.get('SMTP_PASSWORD', '')
+        self.smtp_user = os.environ.get('SMTP_USER', 'info@thenetvista.com')
+        self.smtp_password = os.environ.get('SMTP_PASSWORD', 'Nafis@983168')
         self.from_email = os.environ.get('SMTP_FROM_EMAIL', self.smtp_user)
         self.from_name = os.environ.get('SMTP_FROM_NAME', 'Lead Scraper')
     
