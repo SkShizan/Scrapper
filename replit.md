@@ -1,94 +1,142 @@
 # Lead Scraper Application
 
 ## Overview
-A Flask-based web application for scraping business leads from multiple sources including Google Search, LinkedIn, Facebook, Instagram, and Yellow Pages. Users can search for businesses by query and location, extract contact information, and export results to CSV.
+A Flask-based web application for scraping business leads from multiple sources including Google Search, LinkedIn, Facebook, Instagram, and Yellow Pages. Features user authentication with email OTP verification and admin approval workflow.
 
-## Recent Changes (December 1, 2025)
-- **Project Setup**: Configured for Replit environment
-- **Dependencies**: Added python-dotenv and curl-cffi to requirements.txt
-- **Code Fixes**: Fixed method signature compatibility in scraper classes
-- **Workflow**: Configured Flask app to run on port 5000
-- **Documentation**: Created .gitignore for Python project
+## Recent Changes (December 2, 2025)
+- **User Authentication**: Added complete signup/login system with email OTP verification
+- **Admin Approval**: New accounts require admin approval before accessing the app
+- **Per-User Data**: Each user's scraped leads are stored separately in SQLite database
+- **Admin Dashboard**: Superuser panel for managing user approvals and accounts
+- **SMTP Integration**: Email service for sending OTP verification codes
+- **Security Improvements**: Password hashing, secure sessions, route protection
 
 ## Project Architecture
 
 ### Technology Stack
 - **Backend**: Flask (Python 3.11)
+- **Database**: SQLite with Flask-SQLAlchemy
+- **Authentication**: Flask-Login with custom OTP verification
+- **Forms**: Flask-WTF with validation
 - **Web Scraping**: BeautifulSoup4, curl-cffi, requests
 - **Data Processing**: pandas
 - **APIs**: Google Custom Search API
-- **Task Queue**: RQ (Redis Queue) - configured but not actively used
 
 ### Directory Structure
 ```
 .
-├── app.py                  # Main Flask application
+├── app.py                  # Main Flask application with auth routes
 ├── config.py               # Configuration with environment variables
+├── models.py               # SQLAlchemy models (User, Lead)
+├── forms.py                # WTForms for authentication
+├── email_service.py        # SMTP service for OTP emails
 ├── requirements.txt        # Python dependencies
-├── scrapers/              # Scraper modules
+├── scrapers/               # Scraper modules
 │   ├── __init__.py
-│   ├── base_scraper.py    # Abstract base class
-│   ├── google.py          # Google Search scraper
-│   ├── social.py          # Social media X-ray search scraper
-│   └── yellow_pages.py    # Yellow Pages direct scraper
+│   ├── base_scraper.py     # Abstract base class
+│   ├── google.py           # Google Search scraper
+│   ├── social.py           # Social media X-ray search scraper
+│   └── yellow_pages.py     # Yellow Pages direct scraper
 └── templates/
-    └── index.html         # Frontend UI
-
+    ├── base.html           # Base template with navbar
+    ├── login.html          # Login page
+    ├── signup.html         # Registration page
+    ├── verify_otp.html     # OTP verification page
+    ├── pending_approval.html # Waiting for approval page
+    ├── admin.html          # Admin dashboard
+    └── index.html          # Main scraper interface
 ```
+
+### Authentication Flow
+1. User signs up with name, email, password
+2. System sends 6-digit OTP to email
+3. User enters OTP to verify email
+4. Account waits for admin approval
+5. Admin approves account via dashboard
+6. User can now login and use the scraper
 
 ### Key Features
 1. **Multi-Platform Search**:
    - Google Search (requires API key)
    - LinkedIn X-Ray Search (via Google)
    - Facebook/Instagram (via Google)
-   - Yellow Pages (direct scraping, no API needed)
+   - Yellow Pages (direct scraping, pagination supported)
 
-2. **Email Extraction**:
-   - Regex-based email detection
-   - Cloudflare email protection decoder
-   - Junk email filtering
+2. **User Management**:
+   - Email/password authentication
+   - OTP email verification
+   - Admin approval workflow
+   - User enable/disable
+   - Admin role management
 
 3. **Data Export**:
-   - CSV download of all collected leads
-   - Structured data with Name, Email, Website, Location, Source
+   - Per-user lead storage
+   - CSV download of user's leads
+   - Clear leads functionality
 
-### Environment Variables
-Required in `.env` file (not tracked in git):
+### Environment Variables / Secrets
+Required secrets (set in Replit Secrets tab):
+
+**Admin Account:**
+- `ADMIN_EMAIL` - Admin login email (default: admin@example.com)
+- `ADMIN_PASSWORD` - Admin login password (default: admin123)
+
+**SMTP Configuration (for OTP emails):**
+- `SMTP_HOST` - SMTP server hostname (e.g., smtp.gmail.com)
+- `SMTP_PORT` - SMTP port (default: 587)
+- `SMTP_USER` - SMTP username/email
+- `SMTP_PASSWORD` - SMTP password or app password
+- `SMTP_FROM_EMAIL` - From email address (optional, uses SMTP_USER)
+- `SMTP_FROM_NAME` - From name (default: Lead Scraper)
+
+**Optional:**
+- `SECRET_KEY` - Flask session secret (auto-generated if not set)
 - `GOOGLE_API_KEY` - Google Custom Search API key
 - `GOOGLE_CX` - Google Custom Search Engine ID
-- `SECRET_KEY` - Flask secret key (optional, has default)
-- `FLASK_DEBUG` - Debug mode (optional, default: False)
-- `REDIS_HOST` - Redis host (optional, default: localhost)
-- `REDIS_PORT` - Redis port (optional, default: 6379)
 
 ### Flask Routes
-- `GET /` - Main application interface
-- `POST /search` - Execute search and return results
-- `GET /download` - Download all collected leads as CSV
 
-### How It Works
-1. User enters search credentials and query via web interface
-2. User selects platform (Google, LinkedIn, Facebook, Instagram, Yellow Pages)
-3. Backend routes request to appropriate scraper class
-4. Scraper extracts contact information from search results
-5. Results are displayed in a table and accumulated in memory
-6. User can download all results as CSV file
+**Authentication:**
+- `GET/POST /signup` - User registration
+- `GET/POST /verify-otp` - Email verification
+- `POST /resend-otp` - Resend verification code
+- `GET/POST /login` - User login
+- `GET /logout` - User logout
+
+**Main App (requires login + approval):**
+- `GET /` - Main scraper interface
+- `POST /search` - Execute search and save leads
+- `GET /download` - Download user's leads as CSV
+- `POST /clear-leads` - Clear user's leads
+
+**Admin (requires admin role):**
+- `GET /admin` - Admin dashboard
+- `POST /admin/approve/<id>` - Approve user
+- `POST /admin/reject/<id>` - Reject and delete user
+- `POST /admin/toggle-status/<id>` - Enable/disable user
+- `POST /admin/toggle-admin/<id>` - Grant/revoke admin
 
 ## Development Notes
 
-### Running Locally
-The app is configured to run on `0.0.0.0:5000` which is required for Replit's proxy system. The workflow automatically starts the Flask development server.
+### Default Admin Account
+On first run, a superuser is created:
+- Email: admin@example.com (or ADMIN_EMAIL env var)
+- Password: admin123 (or ADMIN_PASSWORD env var)
 
-### Known Limitations
-- Results are stored in memory (cleared on server restart)
-- Yellow Pages scraping may be blocked by IP bans
-- Google API has rate limits and requires valid credentials
-- No database persistence (by design)
+**Important:** Change the admin credentials in production!
 
-### Security Considerations
-- API keys should be stored in environment variables
-- Never commit `.env` file to git
-- Flask secret key should be set for production use
+### SMTP Setup
+If SMTP is not configured, OTP codes will be displayed on screen (development only). For production, configure SMTP secrets.
+
+For Gmail:
+1. Enable 2FA on your Google account
+2. Generate an App Password
+3. Use the app password as SMTP_PASSWORD
+
+### Database
+SQLite database (leadscaper.db) is created automatically. Contains:
+- `users` table - User accounts
+- `leads` table - Scraped leads per user
 
 ## User Preferences
 None specified yet.

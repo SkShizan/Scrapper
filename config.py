@@ -1,16 +1,15 @@
 # config.py
 import os
+import secrets
 from dotenv import load_dotenv
 
-# Find the .env file in the root directory
 base_dir = os.path.abspath(os.path.dirname(__file__))
 load_dotenv(os.path.join(base_dir, '.env'))
 
 class Config:
     """Base configuration class."""
     
-    # Flask settings
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'a_very_hard_to_guess_secret_string'
+    SECRET_KEY = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
     DEBUG = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
     
     # Credentials
