@@ -3,7 +3,14 @@
 ## Overview
 A Flask-based web application for scraping business leads from multiple sources including Google Search, LinkedIn, Facebook, Instagram, and Yellow Pages. Features user authentication with email OTP verification and admin approval workflow.
 
-## Recent Changes (December 2, 2025)
+## Recent Changes (December 5, 2025)
+- **Super Admin System**: Added super admin role with unlimited access and control
+- **Subscription Management**: Admins can set access duration (days) when approving users
+- **Subscription Expiry**: Users are blocked when their subscription expires
+- **Enhanced Admin Dashboard**: Shows subscription status, days remaining, extend subscription controls
+- **Signup Flow Fix**: Existing unverified emails can re-signup and get new OTP
+
+## Previous Changes (December 2, 2025)
 - **User Authentication**: Added complete signup/login system with email OTP verification
 - **Admin Approval**: New accounts require admin approval before accessing the app
 - **Per-User Data**: Each user's scraped leads are stored separately in SQLite database
@@ -111,10 +118,12 @@ Required secrets (set in Replit Secrets tab):
 
 **Admin (requires admin role):**
 - `GET /admin` - Admin dashboard
-- `POST /admin/approve/<id>` - Approve user
+- `POST /admin/approve/<id>` - Approve user (with subscription days)
 - `POST /admin/reject/<id>` - Reject and delete user
 - `POST /admin/toggle-status/<id>` - Enable/disable user
 - `POST /admin/toggle-admin/<id>` - Grant/revoke admin
+- `POST /admin/extend-subscription/<id>` - Extend user subscription
+- `POST /admin/toggle-super-admin/<id>` - Grant/revoke super admin (super admin only)
 
 ## Development Notes
 
