@@ -121,6 +121,8 @@
     <p class="text-muted">Manage user accounts, approvals, and subscriptions</p>
 </div>
 
+
+
 <div class="row mb-4">
     <div class="col-md-3 mb-3">
         <div class="stat-card">
@@ -166,13 +168,16 @@
             </thead>
             <tbody>
                 {% for user in pending_users %}
-                <tr>
-                    <td><strong>{{ user.name }}</strong></td>
-                    <td>{{ user.email }}</td>
+                <tr class="user-row">
+                    <td class="user-name"><strong>{{ user.name }}</strong></td>
+                    <td class="user-email">{{ user.email }}</td>
                     <td>{{ user.created_at.strftime('%b %d, %Y %H:%M') }}</td>
                     <td>
-                        <form method="POST" action="{{ url_for('approve_user', user_id=user.id) }}" class="inline-form" id="approve-form-{{ user.id }}">
-                            <input type="number" name="subscription_days" value="30" min="1" max="365" class="form-control subscription-input">
+                        <span class="user-id d-none">{{ user.id }}</span>
+                        <form method="POST" action="{{ url_for('approve_user', user_id=user.id) }}"
+                              class="inline-form" id="approve-form-{{ user.id }}">
+                            <input type="number" name="subscription_days" value="30" min="1" max="365"
+                                   class="form-control subscription-input">
                             <span class="text-muted">days</span>
                         </form>
                     </td>
@@ -180,7 +185,8 @@
                         <button type="submit" form="approve-form-{{ user.id }}" class="btn btn-success action-btn">
                             <i class="bi bi-check-lg me-1"></i>Approve
                         </button>
-                        <form method="POST" action="{{ url_for('reject_user', user_id=user.id) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to reject and delete this user?');">
+                        <form method="POST" action="{{ url_for('reject_user', user_id=user.id) }}"
+                              style="display: inline;" onsubmit="return confirm('Are you sure you want to reject and delete this user?');">
                             <button type="submit" class="btn btn-danger action-btn">
                                 <i class="bi bi-x-lg me-1"></i>Reject
                             </button>
@@ -195,8 +201,15 @@
 {% endif %}
 
 <div class="data-card">
-    <div class="data-card-header">
+    <div class="data-card-header" style="display: flex; justify-content: space-between;">
         <h5><i class="bi bi-people me-2"></i>All Users</h5>
+        <div class="col-md-6">
+            <div class="position-relative ms-auto" style="max-width: 400px;">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" id="userSearch" class="form-control search-glass"
+                       placeholder="Search users by name, email, or ID..." onkeyup="filterUsers()">
+            </div>
+        </div>
     </div>
     <div class="table-responsive">
         <table class="user-table">
@@ -210,11 +223,14 @@
                     <th>Actions</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="usersTableBody">
+
                 {% for user in all_users %}
-                <tr>
-                    <td><strong>{{ user.name }}</strong></td>
-                    <td>{{ user.email }}</td>
+                <tr class="user-row">
+                    <td class="user-name"><strong>{{ user.name }}</strong></td>
+                    <td class="user-email">{{ user.email }}</td>
+                    <td class="user-id d-none">{{ user.id }}</td>
+
                     <td>
                         {% if not user.email_verified %}
                             <span class="badge-status badge-pending">Unverified</span>
@@ -228,6 +244,7 @@
                             <span class="badge-status badge-active">Active</span>
                         {% endif %}
                     </td>
+
                     <td>
                         {% if user.is_super_admin %}
                             <span class="badge-status badge-super-admin">Super Admin</span>
@@ -237,6 +254,7 @@
                             <span class="text-muted">User</span>
                         {% endif %}
                     </td>
+
                     <td>
                         {% if user.is_admin or user.is_super_admin %}
                             <span class="days-badge days-ok">Unlimited</span>
@@ -254,47 +272,63 @@
                             <span class="text-muted">Not set</span>
                         {% endif %}
                     </td>
+
                     <td>
                         {% if user.email_verified and not user.is_approved %}
-                            <form method="POST" action="{{ url_for('approve_user', user_id=user.id) }}" class="inline-form mb-1">
-                                <input type="number" name="subscription_days" value="30" min="1" max="365" class="form-control subscription-input">
-                                <button type="submit" class="btn btn-success action-btn" title="Approve">
-                                    <i class="bi bi-check-lg"></i>
-                                </button>
-                            </form>
+                        <form method="POST" action="{{ url_for('approve_user', user_id=user.id) }}" class="inline-form mb-1">
+                            <input type="number" name="subscription_days" value="30" min="1" max="365"
+                                   class="form-control subscription-input">
+                            <button type="submit" class="btn btn-success action-btn" title="Approve">
+                                <i class="bi bi-check-lg"></i>
+                            </button>
+                        </form>
                         {% endif %}
-                        
+
                         {% if user.is_approved and not user.is_admin %}
-                        <form method="POST" action="{{ url_for('extend_subscription', user_id=user.id) }}" class="inline-form mb-1">
-                            <input type="number" name="extend_days" value="30" min="1" max="365" class="form-control subscription-input" placeholder="Days">
+                        <form method="POST" action="{{ url_for('extend_subscription', user_id=user.id) }}"
+                              class="inline-form mb-1">
+                            <input type="number" name="extend_days" value="30" min="1" max="365"
+                                   class="form-control subscription-input">
                             <button type="submit" class="btn btn-info action-btn" title="Extend Subscription">
                                 <i class="bi bi-plus-circle"></i>
                             </button>
                         </form>
                         {% endif %}
-                        
+
                         <div class="mt-1">
-                            <form method="POST" action="{{ url_for('toggle_user_status', user_id=user.id) }}" style="display: inline;">
-                                <button type="submit" class="btn btn-{{ 'warning' if user.is_active else 'success' }} action-btn" title="{{ 'Disable' if user.is_active else 'Enable' }}">
+                            <form method="POST" action="{{ url_for('toggle_user_status', user_id=user.id) }}"
+                                  style="display: inline;">
+                                <button type="submit"
+                                        class="btn btn-{{ 'warning' if user.is_active else 'success' }} action-btn"
+                                        title="{{ 'Disable' if user.is_active else 'Enable' }}">
                                     <i class="bi bi-{{ 'pause' if user.is_active else 'play' }}-fill"></i>
                                 </button>
                             </form>
-                            
-                            <form method="POST" action="{{ url_for('toggle_admin_status', user_id=user.id) }}" style="display: inline;">
-                                <button type="submit" class="btn btn-{{ 'secondary' if user.is_admin else 'info' }} action-btn" title="{{ 'Remove Admin' if user.is_admin else 'Make Admin' }}">
+
+                            <form method="POST" action="{{ url_for('toggle_admin_status', user_id=user.id) }}"
+                                  style="display: inline;">
+                                <button type="submit"
+                                        class="btn btn-{{ 'secondary' if user.is_admin else 'info' }} action-btn"
+                                        title="{{ 'Remove Admin' if user.is_admin else 'Make Admin' }}">
                                     <i class="bi bi-shield{{ '-check' if user.is_admin else '' }}"></i>
                                 </button>
                             </form>
-                            
+
                             {% if current_user.is_super_admin %}
-                            <form method="POST" action="{{ url_for('toggle_super_admin', user_id=user.id) }}" style="display: inline;">
-                                <button type="submit" class="btn btn-{{ 'purple' if user.is_super_admin else 'outline-purple' }} action-btn" title="{{ 'Remove Super Admin' if user.is_super_admin else 'Make Super Admin' }}" style="{% if user.is_super_admin %}background-color: #6C3483; border-color: #6C3483; color: white;{% else %}border-color: #6C3483; color: #6C3483;{% endif %}">
+                            <form method="POST" action="{{ url_for('toggle_super_admin', user_id=user.id) }}"
+                                  style="display: inline;">
+                                <button type="submit"
+                                        class="btn btn-{{ 'purple' if user.is_super_admin else 'outline-purple' }} action-btn"
+                                        style="{% if user.is_super_admin %}background-color: #6C3483; border-color: #6C3483; color: white;{% else %}border-color: #6C3483; color: #6C3483;{% endif %}"
+                                        title="{{ 'Remove Super Admin' if user.is_super_admin else 'Make Super Admin' }}">
                                     <i class="bi bi-star{{ '-fill' if user.is_super_admin else '' }}"></i>
                                 </button>
                             </form>
                             {% endif %}
-                            
-                            <form method="POST" action="{{ url_for('reject_user', user_id=user.id) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to permanently delete this user?');">
+
+                            <form method="POST" action="{{ url_for('reject_user', user_id=user.id) }}"
+                                  style="display: inline;"
+                                  onsubmit="return confirm('Are you sure you want to permanently delete this user?');">
                                 <button type="submit" class="btn btn-outline-danger action-btn" title="Delete">
                                     <i class="bi bi-trash"></i>
                                 </button>
@@ -303,16 +337,47 @@
                     </td>
                 </tr>
                 {% endfor %}
-                {% if not all_users %}
-                <tr>
+
+                <!-- No Results Row -->
+                <tr id="noResults" class="d-none">
                     <td colspan="6" class="text-center text-muted py-4">
-                        <i class="bi bi-inbox" style="font-size: 2rem;"></i>
-                        <p class="mb-0 mt-2">No users yet</p>
+                        <i class="bi bi-search" style="font-size: 2rem;"></i>
+                        <p class="mt-2 mb-0">No matching users found</p>
                     </td>
                 </tr>
-                {% endif %}
+
             </tbody>
         </table>
     </div>
 </div>
+
+<script>
+function filterUsers() {
+    const input = document.getElementById('userSearch');
+    const filter = input.value.toLowerCase();
+    const rows = document.querySelectorAll('.user-row');
+    let hasResults = false;
+
+    rows.forEach(row => {
+        const name = row.querySelector('.user-name').textContent.toLowerCase();
+        const email = row.querySelector('.user-email').textContent.toLowerCase();
+        const id = row.querySelector('.user-id').textContent.toLowerCase();
+
+        if (name.includes(filter) || email.includes(filter) || id.includes(filter)) {
+            row.style.display = "";
+            hasResults = true;
+        } else {
+            row.style.display = "none";
+        }
+    });
+
+    const noResults = document.getElementById('noResults');
+    if (!hasResults && rows.length > 0) {
+        noResults.classList.remove('d-none');
+    } else {
+        noResults.classList.add('d-none');
+    }
+}
+</script>
+
 {% endblock %}

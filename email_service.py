@@ -2,15 +2,24 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 class EmailService:
     def __init__(self):
+        # config gets loaded from .env
         self.smtp_host = os.environ.get('SMTP_HOST', 'smtp.hostinger.com')
         self.smtp_port = int(os.environ.get('SMTP_PORT', 587))
-        self.smtp_user = os.environ.get('SMTP_USER', 'info@thenetvista.com')
-        self.smtp_password = os.environ.get('SMTP_PASSWORD', 'Nafis@983168')
+        self.smtp_user = os.environ.get('SMTP_USER')
+        self.smtp_password = os.environ.get('SMTP_PASSWORD')
+
+        # Use defaults or fallback to the authenticated user
         self.from_email = os.environ.get('SMTP_FROM_EMAIL', self.smtp_user)
         self.from_name = os.environ.get('SMTP_FROM_NAME', 'Lead Scraper')
+
+    # ... rest of your class methods ...
     
     def is_configured(self):
         return bool(self.smtp_user and self.smtp_password)
