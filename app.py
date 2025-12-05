@@ -1,6 +1,7 @@
 import io
 import os
 import pandas as pd
+from datetime import datetime
 from functools import wraps
 from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, flash, session
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
@@ -45,6 +46,8 @@ def approved_required(f):
             flash('Your account has been disabled. Please contact administrator.', 'error')
             logout_user()
             return redirect(url_for('login'))
+        if current_user.is_subscription_expired():
+            return render_template('subscription_expired.html')
         return f(*args, **kwargs)
     return decorated_function
 
@@ -57,6 +60,12 @@ def admin_required(f):
         if not current_user.is_admin:
             flash('Admin access required.', 'error')
             return redirect(url_for('index'))
+        if not current_user.is_super_admin and current_user.is_subscription_expired():
+            return render_template('subscription_expired.html')
+        if not current_user.is_active:
+            flash('Your account has been disabled.', 'error')
+            logout_user()
+            return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -326,14 +335,21 @@ def admin_dashboard():
 @login_required
 @admin_required
 def approve_user(user_id):
+    from datetime import timedelta
     user = User.query.get_or_404(user_id)
     user.is_approved = True
+    user.approved_at = datetime.utcnow()
+    
+    days = request.form.get('subscription_days', 30, type=int)
+    if days > 0:
+        user.subscription_expires_at = datetime.utcnow() + timedelta(days=days)
+    
     db.session.commit()
     
     if email_service.is_configured():
         email_service.send_approval_notification(user.email, user.name, approved=True)
     
-    flash(f'User {user.email} has been approved.', 'success')
+    flash(f'User {user.email} has been approved with {days} days access.', 'success')
     return redirect(url_for('admin_dashboard'))
 
 
@@ -383,6 +399,46 @@ def toggle_admin_status(user_id):
     return redirect(url_for('admin_dashboard'))
 
 
+@app.route('/admin/extend-subscription/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def extend_subscription(user_id):
+    user = User.query.get_or_404(user_id)
+    days = request.form.get('extend_days', 30, type=int)
+    
+    if days > 0:
+        user.extend_subscription(days)
+        db.session.commit()
+        flash(f'Extended subscription for {user.email} by {days} days.', 'success')
+    else:
+        flash('Please enter a valid number of days.', 'error')
+    
+    return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/admin/toggle-super-admin/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def toggle_super_admin(user_id):
+    if not current_user.is_super_admin:
+        flash('Only super admins can manage super admin status.', 'error')
+        return redirect(url_for('admin_dashboard'))
+    
+    user = User.query.get_or_404(user_id)
+    if user.id == current_user.id:
+        flash('You cannot change your own super admin status.', 'error')
+        return redirect(url_for('admin_dashboard'))
+    
+    user.is_super_admin = not user.is_super_admin
+    if user.is_super_admin:
+        user.is_admin = True
+    db.session.commit()
+    
+    status = 'granted' if user.is_super_admin else 'revoked'
+    flash(f'Super admin access {status} for {user.email}.', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+
 def create_superuser():
     admin_email = os.environ.get('ADMIN_EMAIL', 'shizankhan011@gmail.com')
     admin_password = os.environ.get('ADMIN_PASSWORD', 'Nafis@@123##456')
@@ -394,14 +450,21 @@ def create_superuser():
             name='Administrator',
             email_verified=True,
             is_approved=True,
-            is_admin=True
+            is_admin=True,
+            is_super_admin=True
         )
         admin.set_password(admin_password)
         db.session.add(admin)
         db.session.commit()
-        print(f"Superuser created: {admin_email}")
+        print(f"Super admin created: {admin_email}")
     else:
-        print(f"Superuser already exists: {admin_email}")
+        if not existing.is_super_admin:
+            existing.is_super_admin = True
+            existing.is_admin = True
+            db.session.commit()
+            print(f"Upgraded to super admin: {admin_email}")
+        else:
+            print(f"Super admin already exists: {admin_email}")
 
 
 with app.app_context():

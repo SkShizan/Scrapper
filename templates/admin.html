@@ -62,37 +62,85 @@
     background-color: var(--color-danger-soft);
     color: var(--color-danger);
 }
+.badge-expired {
+    background-color: #FFE5E5;
+    color: #C0392B;
+}
 .badge-admin {
     background-color: #D1E7DD;
     color: #0A3622;
+}
+.badge-super-admin {
+    background-color: #E8D4F8;
+    color: #6C3483;
 }
 .action-btn {
     padding: 0.4rem 0.8rem;
     font-size: 0.85rem;
     border-radius: 0.4rem;
 }
+.subscription-input {
+    width: 80px;
+    display: inline-block;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.85rem;
+}
+.days-badge {
+    padding: 0.3rem 0.6rem;
+    border-radius: 0.4rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+.days-ok {
+    background-color: #D4EDDA;
+    color: #155724;
+}
+.days-warning {
+    background-color: #FFF3CD;
+    color: #856404;
+}
+.days-danger {
+    background-color: #F8D7DA;
+    color: #721C24;
+}
+.inline-form {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
 {% endblock %}
 
 {% block content %}
 <div class="admin-header">
-    <h1><i class="bi bi-shield-check me-2" style="color: var(--primary-color);"></i>Admin Dashboard</h1>
-    <p class="text-muted">Manage user accounts and approvals</p>
+    <h1>
+        <i class="bi bi-shield-check me-2" style="color: var(--primary-color);"></i>Admin Dashboard
+        {% if current_user.is_super_admin %}
+        <span class="badge-status badge-super-admin ms-2" style="font-size: 0.5em; vertical-align: middle;">Super Admin</span>
+        {% endif %}
+    </h1>
+    <p class="text-muted">Manage user accounts, approvals, and subscriptions</p>
 </div>
 
 <div class="row mb-4">
-    <div class="col-md-4 mb-3">
+    <div class="col-md-3 mb-3">
         <div class="stat-card">
             <div class="stat-number">{{ pending_users|length }}</div>
             <div class="stat-label">Pending Approvals</div>
         </div>
     </div>
-    <div class="col-md-4 mb-3">
+    <div class="col-md-3 mb-3">
         <div class="stat-card">
             <div class="stat-number">{{ all_users|selectattr('is_approved')|list|length }}</div>
             <div class="stat-label">Approved Users</div>
         </div>
     </div>
-    <div class="col-md-4 mb-3">
+    <div class="col-md-3 mb-3">
+        <div class="stat-card">
+            <div class="stat-number">{{ all_users|selectattr('status', 'equalto', 'expired')|list|length }}</div>
+            <div class="stat-label">Expired</div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
         <div class="stat-card">
             <div class="stat-number">{{ all_users|length }}</div>
             <div class="stat-label">Total Users</div>
@@ -112,6 +160,7 @@
                     <th>Name</th>
                     <th>Email</th>
                     <th>Signed Up</th>
+                    <th>Subscription Days</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -122,11 +171,15 @@
                     <td>{{ user.email }}</td>
                     <td>{{ user.created_at.strftime('%b %d, %Y %H:%M') }}</td>
                     <td>
-                        <form method="POST" action="{{ url_for('approve_user', user_id=user.id) }}" style="display: inline;">
-                            <button type="submit" class="btn btn-success action-btn">
-                                <i class="bi bi-check-lg me-1"></i>Approve
-                            </button>
+                        <form method="POST" action="{{ url_for('approve_user', user_id=user.id) }}" class="inline-form" id="approve-form-{{ user.id }}">
+                            <input type="number" name="subscription_days" value="30" min="1" max="365" class="form-control subscription-input">
+                            <span class="text-muted">days</span>
                         </form>
+                    </td>
+                    <td>
+                        <button type="submit" form="approve-form-{{ user.id }}" class="btn btn-success action-btn">
+                            <i class="bi bi-check-lg me-1"></i>Approve
+                        </button>
                         <form method="POST" action="{{ url_for('reject_user', user_id=user.id) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to reject and delete this user?');">
                             <button type="submit" class="btn btn-danger action-btn">
                                 <i class="bi bi-x-lg me-1"></i>Reject
@@ -153,7 +206,7 @@
                     <th>Email</th>
                     <th>Status</th>
                     <th>Role</th>
-                    <th>Joined</th>
+                    <th>Subscription</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -169,44 +222,84 @@
                             <span class="badge-status badge-pending">Pending</span>
                         {% elif not user.is_active %}
                             <span class="badge-status badge-disabled">Disabled</span>
+                        {% elif user.is_subscription_expired() %}
+                            <span class="badge-status badge-expired">Expired</span>
                         {% else %}
                             <span class="badge-status badge-active">Active</span>
                         {% endif %}
                     </td>
                     <td>
-                        {% if user.is_admin %}
+                        {% if user.is_super_admin %}
+                            <span class="badge-status badge-super-admin">Super Admin</span>
+                        {% elif user.is_admin %}
                             <span class="badge-status badge-admin">Admin</span>
                         {% else %}
                             <span class="text-muted">User</span>
                         {% endif %}
                     </td>
-                    <td>{{ user.created_at.strftime('%b %d, %Y') }}</td>
+                    <td>
+                        {% if user.is_admin or user.is_super_admin %}
+                            <span class="days-badge days-ok">Unlimited</span>
+                        {% elif user.subscription_expires_at %}
+                            {% set days = user.days_remaining() %}
+                            {% if days == 0 %}
+                                <span class="days-badge days-danger">Expired</span>
+                            {% elif days <= 7 %}
+                                <span class="days-badge days-warning">{{ days }} days left</span>
+                            {% else %}
+                                <span class="days-badge days-ok">{{ days }} days left</span>
+                            {% endif %}
+                            <br><small class="text-muted">{{ user.subscription_expires_at.strftime('%b %d, %Y') }}</small>
+                        {% else %}
+                            <span class="text-muted">Not set</span>
+                        {% endif %}
+                    </td>
                     <td>
                         {% if user.email_verified and not user.is_approved %}
-                            <form method="POST" action="{{ url_for('approve_user', user_id=user.id) }}" style="display: inline;">
+                            <form method="POST" action="{{ url_for('approve_user', user_id=user.id) }}" class="inline-form mb-1">
+                                <input type="number" name="subscription_days" value="30" min="1" max="365" class="form-control subscription-input">
                                 <button type="submit" class="btn btn-success action-btn" title="Approve">
                                     <i class="bi bi-check-lg"></i>
                                 </button>
                             </form>
                         {% endif %}
                         
-                        <form method="POST" action="{{ url_for('toggle_user_status', user_id=user.id) }}" style="display: inline;">
-                            <button type="submit" class="btn btn-{{ 'warning' if user.is_active else 'success' }} action-btn" title="{{ 'Disable' if user.is_active else 'Enable' }}">
-                                <i class="bi bi-{{ 'pause' if user.is_active else 'play' }}-fill"></i>
+                        {% if user.is_approved and not user.is_admin %}
+                        <form method="POST" action="{{ url_for('extend_subscription', user_id=user.id) }}" class="inline-form mb-1">
+                            <input type="number" name="extend_days" value="30" min="1" max="365" class="form-control subscription-input" placeholder="Days">
+                            <button type="submit" class="btn btn-info action-btn" title="Extend Subscription">
+                                <i class="bi bi-plus-circle"></i>
                             </button>
                         </form>
+                        {% endif %}
                         
-                        <form method="POST" action="{{ url_for('toggle_admin_status', user_id=user.id) }}" style="display: inline;">
-                            <button type="submit" class="btn btn-{{ 'secondary' if user.is_admin else 'info' }} action-btn" title="{{ 'Remove Admin' if user.is_admin else 'Make Admin' }}">
-                                <i class="bi bi-shield{{ '-check' if user.is_admin else '' }}"></i>
-                            </button>
-                        </form>
-                        
-                        <form method="POST" action="{{ url_for('reject_user', user_id=user.id) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to permanently delete this user?');">
-                            <button type="submit" class="btn btn-outline-danger action-btn" title="Delete">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </form>
+                        <div class="mt-1">
+                            <form method="POST" action="{{ url_for('toggle_user_status', user_id=user.id) }}" style="display: inline;">
+                                <button type="submit" class="btn btn-{{ 'warning' if user.is_active else 'success' }} action-btn" title="{{ 'Disable' if user.is_active else 'Enable' }}">
+                                    <i class="bi bi-{{ 'pause' if user.is_active else 'play' }}-fill"></i>
+                                </button>
+                            </form>
+                            
+                            <form method="POST" action="{{ url_for('toggle_admin_status', user_id=user.id) }}" style="display: inline;">
+                                <button type="submit" class="btn btn-{{ 'secondary' if user.is_admin else 'info' }} action-btn" title="{{ 'Remove Admin' if user.is_admin else 'Make Admin' }}">
+                                    <i class="bi bi-shield{{ '-check' if user.is_admin else '' }}"></i>
+                                </button>
+                            </form>
+                            
+                            {% if current_user.is_super_admin %}
+                            <form method="POST" action="{{ url_for('toggle_super_admin', user_id=user.id) }}" style="display: inline;">
+                                <button type="submit" class="btn btn-{{ 'purple' if user.is_super_admin else 'outline-purple' }} action-btn" title="{{ 'Remove Super Admin' if user.is_super_admin else 'Make Super Admin' }}" style="{% if user.is_super_admin %}background-color: #6C3483; border-color: #6C3483; color: white;{% else %}border-color: #6C3483; color: #6C3483;{% endif %}">
+                                    <i class="bi bi-star{{ '-fill' if user.is_super_admin else '' }}"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                            
+                            <form method="POST" action="{{ url_for('reject_user', user_id=user.id) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to permanently delete this user?');">
+                                <button type="submit" class="btn btn-outline-danger action-btn" title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </div>
                     </td>
                 </tr>
                 {% endfor %}

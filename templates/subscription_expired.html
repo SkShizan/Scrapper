@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Subscription Expired - Lead Scraper{% endblock %}
+
+{% block content %}
+<div class="text-center" style="max-width: 500px; margin: 4rem auto;">
+    <div style="font-size: 4rem; color: var(--primary-color); margin-bottom: 1rem;">
+        <i class="bi bi-clock-history"></i>
+    </div>
+    <h2 style="font-weight: 800; color: var(--text-dark); margin-bottom: 1rem;">Subscription Expired</h2>
+    <p class="text-muted mb-4">
+        Your access to Lead Scraper has expired. Please contact the administrator to renew your subscription.
+    </p>
+    
+    <div class="data-card p-4 mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <span class="text-muted">Account</span>
+            <strong>{{ current_user.email }}</strong>
+        </div>
+        <hr style="border-color: var(--border-color);">
+        <div class="d-flex justify-content-between align-items-center">
+            <span class="text-muted">Status</span>
+            <span class="badge-status badge-disabled">Expired</span>
+        </div>
+        {% if current_user.subscription_expires_at %}
+        <hr style="border-color: var(--border-color);">
+        <div class="d-flex justify-content-between align-items-center">
+            <span class="text-muted">Expired On</span>
+            <span>{{ current_user.subscription_expires_at.strftime('%b %d, %Y') }}</span>
+        </div>
+        {% endif %}
+    </div>
+    
+    <a href="{{ url_for('logout') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-box-arrow-left me-2"></i>Log Out
+    </a>
+</div>
+{% endblock %}

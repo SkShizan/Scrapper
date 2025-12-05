@@ -20,7 +20,11 @@ class User(UserMixin, db.Model):
     
     is_approved = db.Column(db.Boolean, default=False)
     is_admin = db.Column(db.Boolean, default=False)
+    is_super_admin = db.Column(db.Boolean, default=False)
     is_active = db.Column(db.Boolean, default=True)
+    
+    subscription_expires_at = db.Column(db.DateTime, nullable=True)
+    approved_at = db.Column(db.DateTime, nullable=True)
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -52,7 +56,35 @@ class User(UserMixin, db.Model):
         return False
     
     def can_access_app(self):
-        return self.email_verified and self.is_approved and self.is_active
+        if not (self.email_verified and self.is_approved and self.is_active):
+            return False
+        if self.is_super_admin or self.is_admin:
+            return True
+        if self.subscription_expires_at and datetime.utcnow() > self.subscription_expires_at:
+            return False
+        return True
+    
+    def is_subscription_expired(self):
+        if self.is_super_admin or self.is_admin:
+            return False
+        if not self.subscription_expires_at:
+            return False
+        return datetime.utcnow() > self.subscription_expires_at
+    
+    def days_remaining(self):
+        if not self.subscription_expires_at:
+            return None
+        if self.is_super_admin or self.is_admin:
+            return float('inf')
+        remaining = (self.subscription_expires_at - datetime.utcnow()).days
+        return max(0, remaining)
+    
+    def extend_subscription(self, days):
+        from datetime import timedelta
+        if self.subscription_expires_at and self.subscription_expires_at > datetime.utcnow():
+            self.subscription_expires_at = self.subscription_expires_at + timedelta(days=days)
+        else:
+            self.subscription_expires_at = datetime.utcnow() + timedelta(days=days)
     
     @property
     def status(self):
@@ -62,6 +94,8 @@ class User(UserMixin, db.Model):
             return 'pending_approval'
         if not self.is_active:
             return 'disabled'
+        if self.is_subscription_expired():
+            return 'expired'
         return 'active'
 
 
