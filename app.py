@@ -13,6 +13,7 @@ from email_service import email_service
 from scrapers.google import GoogleScraper
 from scrapers.social import SocialMediaScraper
 from scrapers.yellow_pages import YellowPagesScraper
+from scrapers.duckduckgo import DuckDuckGoScraper
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -29,7 +30,8 @@ login_manager.login_message_category = 'info'
 
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    # FIX: Use db.session.get() to avoid LegacyAPIWarning
+    return db.session.get(User, int(user_id))
 
 
 def approved_required(f):
@@ -78,51 +80,51 @@ def signup():
         if not current_user.email_verified:
             return redirect(url_for('verify_otp'))
         return redirect(url_for('index'))
-    
+
     form = SignupForm()
     if form.validate_on_submit():
         email = form.email.data.lower()
         existing_user = User.query.filter_by(email=email).first()
-        
+
         if existing_user:
             if not existing_user.email_verified:
                 existing_user.set_password(form.password.data)
                 otp = existing_user.generate_otp()
                 db.session.commit()
-                
+
                 if email_service.is_configured():
                     email_service.send_otp_email(existing_user.email, otp, existing_user.name)
                     flash('Account already exists. A new verification code has been sent to your email.', 'info')
                 else:
                     flash(f'Account already exists. SMTP not configured. Your OTP is: {otp}', 'warning')
-                
+
                 login_user(existing_user)
                 session['pending_verification_user_id'] = existing_user.id
                 return redirect(url_for('verify_otp'))
             else:
                 flash('An account with this email already exists. Please log in instead.', 'error')
                 return render_template('signup.html', form=form)
-        
+
         user = User(
             email=email,
             name=form.name.data
         )
         user.set_password(form.password.data)
         otp = user.generate_otp()
-        
+
         db.session.add(user)
         db.session.commit()
-        
+
         if email_service.is_configured():
             email_service.send_otp_email(user.email, otp, user.name)
             flash('Account created! Please check your email for the verification code.', 'success')
         else:
             flash(f'Account created! SMTP not configured. Your OTP is: {otp}', 'warning')
-        
+
         login_user(user)
         session['pending_verification_user_id'] = user.id
         return redirect(url_for('verify_otp'))
-    
+
     return render_template('signup.html', form=form)
 
 
@@ -131,20 +133,21 @@ def verify_otp():
     if not current_user.is_authenticated:
         user_id = session.get('pending_verification_user_id')
         if user_id:
-            user = User.query.get(user_id)
+            # FIX: Use db.session.get() here as well
+            user = db.session.get(User, user_id)
             if user:
                 login_user(user)
         else:
             return redirect(url_for('login'))
-    
+
     if current_user.email_verified:
         if current_user.can_access_app():
             return redirect(url_for('index'))
         return render_template('pending_approval.html')
-    
+
     form = VerifyOTPForm()
     resend_form = ResendOTPForm()
-    
+
     if form.validate_on_submit():
         if current_user.verify_otp(form.otp.data):
             db.session.commit()
@@ -153,7 +156,7 @@ def verify_otp():
             return redirect(url_for('index'))
         else:
             flash('Invalid or expired verification code.', 'error')
-    
+
     return render_template('verify_otp.html', form=form, resend_form=resend_form)
 
 
@@ -161,19 +164,19 @@ def verify_otp():
 def resend_otp():
     if not current_user.is_authenticated:
         return redirect(url_for('login'))
-    
+
     if current_user.email_verified:
         return redirect(url_for('index'))
-    
+
     otp = current_user.generate_otp()
     db.session.commit()
-    
+
     if email_service.is_configured():
         email_service.send_otp_email(current_user.email, otp, current_user.name)
         flash('A new verification code has been sent to your email.', 'success')
     else:
         flash(f'SMTP not configured. Your new OTP is: {otp}', 'warning')
-    
+
     return redirect(url_for('verify_otp'))
 
 
@@ -183,27 +186,27 @@ def login():
         if not current_user.email_verified:
             return redirect(url_for('verify_otp'))
         return redirect(url_for('index'))
-    
+
     form = LoginForm()
     if form.validate_on_submit():
         user = User.query.filter_by(email=form.email.data.lower()).first()
-        
+
         if user and user.check_password(form.password.data):
             if not user.is_active:
                 flash('Your account has been disabled. Please contact administrator.', 'error')
                 return render_template('login.html', form=form)
-            
+
             login_user(user)
-            
+
             if not user.email_verified:
                 return redirect(url_for('verify_otp'))
-            
+
             next_page = request.args.get('next')
             flash('Logged in successfully!', 'success')
             return redirect(next_page if next_page else url_for('index'))
         else:
             flash('Invalid email or password.', 'error')
-    
+
     return render_template('login.html', form=form)
 
 
@@ -232,6 +235,7 @@ def handle_search():
     api_key = data.get('apiKey')
     cx = data.get('cx')
     platform = data.get('platform', 'google')
+    search_method = data.get('searchMethod', 'api') 
     page = int(data.get('page', 1))
 
     if not query or not location:
@@ -239,6 +243,8 @@ def handle_search():
 
     scraper = None
     new_leads = []
+
+    # Default: No next page (because we fetch all at once for DDG)
     meta = {"current_page": 1, "has_next": False}
 
     if platform == 'yellowpages':
@@ -252,13 +258,26 @@ def handle_search():
         meta = result_data.get('meta', {})
 
     elif platform in ['linkedin', 'facebook', 'instagram']:
-        scraper = SocialMediaScraper(platform)
+        backend_type = 'ddg' if search_method == 'ddg' else 'google'
+        scraper = SocialMediaScraper(platform, backend=backend_type)
         new_leads = scraper.search(query, location, api_key, cx)
+
         if isinstance(new_leads, dict) and "error" in new_leads:
             return jsonify(new_leads), 400
-    else:
-        scraper = GoogleScraper()
-        new_leads = scraper.search(query, location, api_key, cx)
+
+    else: # platform == 'google'
+        if search_method == 'ddg':
+            scraper = DuckDuckGoScraper()
+            # We call search() without relying on 'page' for slicing
+            new_leads = scraper.search(query, location)
+
+            # Since we got everything possible, there is no next page
+            meta["has_next"] = False
+
+        else:
+            scraper = GoogleScraper()
+            new_leads = scraper.search(query, location, api_key, cx)
+
         if isinstance(new_leads, dict) and "error" in new_leads:
             return jsonify(new_leads), 400
 
@@ -272,7 +291,7 @@ def handle_search():
             source=lead_data.get('Source')
         )
         db.session.add(lead)
-    
+
     db.session.commit()
 
     return jsonify({
@@ -286,7 +305,7 @@ def handle_search():
 @approved_required
 def handle_download():
     leads = Lead.query.filter_by(user_id=current_user.id).all()
-    
+
     if not leads:
         flash('No leads to download.', 'warning')
         return redirect(url_for('index'))
@@ -336,19 +355,23 @@ def admin_dashboard():
 @admin_required
 def approve_user(user_id):
     from datetime import timedelta
-    user = User.query.get_or_404(user_id)
+    # FIX: Use db.session.get here
+    user = db.session.get(User, user_id)
+    if not user:
+        return "User not found", 404
+
     user.is_approved = True
     user.approved_at = datetime.utcnow()
-    
+
     days = request.form.get('subscription_days', 30, type=int)
     if days > 0:
         user.subscription_expires_at = datetime.utcnow() + timedelta(days=days)
-    
+
     db.session.commit()
-    
+
     if email_service.is_configured():
         email_service.send_approval_notification(user.email, user.name, approved=True)
-    
+
     flash(f'User {user.email} has been approved with {days} days access.', 'success')
     return redirect(url_for('admin_dashboard'))
 
@@ -357,14 +380,16 @@ def approve_user(user_id):
 @login_required
 @admin_required
 def reject_user(user_id):
-    user = User.query.get_or_404(user_id)
-    
+    user = db.session.get(User, user_id)
+    if not user:
+        return "User not found", 404
+
     if email_service.is_configured():
         email_service.send_approval_notification(user.email, user.name, approved=False)
-    
+
     db.session.delete(user)
     db.session.commit()
-    
+
     flash(f'User {user.email} has been rejected and removed.', 'info')
     return redirect(url_for('admin_dashboard'))
 
@@ -373,10 +398,13 @@ def reject_user(user_id):
 @login_required
 @admin_required
 def toggle_user_status(user_id):
-    user = User.query.get_or_404(user_id)
+    user = db.session.get(User, user_id)
+    if not user:
+        return "User not found", 404
+
     user.is_active = not user.is_active
     db.session.commit()
-    
+
     status = 'enabled' if user.is_active else 'disabled'
     flash(f'User {user.email} has been {status}.', 'success')
     return redirect(url_for('admin_dashboard'))
@@ -386,14 +414,17 @@ def toggle_user_status(user_id):
 @login_required
 @admin_required
 def toggle_admin_status(user_id):
-    user = User.query.get_or_404(user_id)
+    user = db.session.get(User, user_id)
+    if not user:
+        return "User not found", 404
+
     if user.id == current_user.id:
         flash('You cannot change your own admin status.', 'error')
         return redirect(url_for('admin_dashboard'))
-    
+
     user.is_admin = not user.is_admin
     db.session.commit()
-    
+
     status = 'granted' if user.is_admin else 'revoked'
     flash(f'Admin access {status} for {user.email}.', 'success')
     return redirect(url_for('admin_dashboard'))
@@ -403,16 +434,19 @@ def toggle_admin_status(user_id):
 @login_required
 @admin_required
 def extend_subscription(user_id):
-    user = User.query.get_or_404(user_id)
+    user = db.session.get(User, user_id)
+    if not user:
+        return "User not found", 404
+
     days = request.form.get('extend_days', 30, type=int)
-    
+
     if days > 0:
         user.extend_subscription(days)
         db.session.commit()
         flash(f'Extended subscription for {user.email} by {days} days.', 'success')
     else:
         flash('Please enter a valid number of days.', 'error')
-    
+
     return redirect(url_for('admin_dashboard'))
 
 
@@ -423,17 +457,20 @@ def toggle_super_admin(user_id):
     if not current_user.is_super_admin:
         flash('Only super admins can manage super admin status.', 'error')
         return redirect(url_for('admin_dashboard'))
-    
-    user = User.query.get_or_404(user_id)
+
+    user = db.session.get(User, user_id)
+    if not user:
+        return "User not found", 404
+
     if user.id == current_user.id:
         flash('You cannot change your own super admin status.', 'error')
         return redirect(url_for('admin_dashboard'))
-    
+
     user.is_super_admin = not user.is_super_admin
     if user.is_super_admin:
         user.is_admin = True
     db.session.commit()
-    
+
     status = 'granted' if user.is_super_admin else 'revoked'
     flash(f'Super admin access {status} for {user.email}.', 'success')
     return redirect(url_for('admin_dashboard'))
@@ -442,7 +479,7 @@ def toggle_super_admin(user_id):
 def create_superuser():
     admin_email = os.environ.get('ADMIN_EMAIL', 'shizankhan011@gmail.com')
     admin_password = os.environ.get('ADMIN_PASSWORD', 'Nafis@@123##456')
-    
+
     existing = User.query.filter_by(email=admin_email).first()
     if not existing:
         admin = User(
