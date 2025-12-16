@@ -208,23 +208,18 @@ class YellowPagesScraper(BaseScraper):
                     email = self._scrape_yp_internal_profile(yp_full_url) or "N/A"
 
                 # 2. STRATEGY B: Check External Website (Deep Scrape / AI)
-                # We check this if email is missing OR if we want to enrich the data with AI
                 if external_website != "N/A" and (email == "N/A" or os.environ.get('GEMINI_API_KEY')):
-
-                    # If we already have an email, we only query AI if we strictly want to valid/enrich
-                    # For optimization, let's say we always check if we have an API key to get better Names/Industry
-
                     found_data = self._scrape_external_website(external_website)
 
                     if found_data:
                         if found_data['type'] == 'ai':
                             d = found_data['data']
 
-                            # Prioritize AI Email if found
+                            # Prioritize AI Email
                             if d.get('email'): 
                                 email = d.get('email')
 
-                            # Enrich Name (YP names are sometimes truncated)
+                            # Enrich Name
                             if d.get('business_name'): 
                                 name = d.get('business_name')
 
@@ -237,15 +232,16 @@ class YellowPagesScraper(BaseScraper):
                                 source_note = f"YP (AI: {d.get('industry')})"
 
                         elif found_data['type'] == 'regex':
-                            # Only overwrite if we didn't have one
                             if email == "N/A":
                                 email = found_data['email']
 
+                # --- FIX: Return Phone as separate key ---
                 results.append({
                     "Name": name,
                     "Email": email,
+                    "Phone": phone,  # <--- SEPARATE COLUMN
                     "Website": external_website,
-                    "Location": f"{location} (Ph: {phone})",
+                    "Location": location,
                     "Source": source_note
                 })
 

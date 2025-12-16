@@ -21,6 +21,8 @@ class GoogleScraper(BaseScraper):
 
     # Regex for fallback (when AI is off)
     EMAIL_REGEX = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,10}\b"
+    PHONE_REGEX = r"(\+\d{1,2}\s?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}"
+
     JUNK_EXTENSIONS = ('.pdf', '.doc', '.docx', '.xls', '.xlsx', '.png', '.jpg', '.jpeg', '.gif', '.xml', '.zip', '.css', '.js', '.mp4')
 
     def _extract_email_regex(self, text):
@@ -34,6 +36,14 @@ class GoogleScraper(BaseScraper):
                 valid_emails.append(email)
         return valid_emails[0] if valid_emails else None
 
+    def _extract_phone(self, text):
+        """Extracts the first valid looking phone number."""
+        if not text: return None
+        matches = re.findall(r"\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}", text)
+        if matches:
+            return matches[0].strip()
+        return None
+
     def _visit_website(self, url, title):
         """
         Deep scrapes the website using AI or Regex.
@@ -45,7 +55,7 @@ class GoogleScraper(BaseScraper):
             domain = urlparse(url).netloc.lower().replace('www.', '')
             if any(junk in domain for junk in self.JUNK_DOMAINS): return None
 
-            print(f"   --> Deep Scraping: {url}")
+            # print(f"   --> Deep Scraping: {url}")
             response = requests.get(
                 url, 
                 impersonate="chrome110", 
@@ -74,6 +84,7 @@ class GoogleScraper(BaseScraper):
             # ---------------------------------------------------------
             # 1. Check Body Text
             email = self._extract_email_regex(page_text)
+            phone = self._extract_phone(page_text)
 
             # 2. Check Mailto Links
             if not email:
@@ -82,8 +93,12 @@ class GoogleScraper(BaseScraper):
                     email = self._extract_email_regex(raw)
                     if email: break
 
-            if email:
-                return {"type": "regex", "email": email}
+            if email or phone:
+                return {
+                    "type": "regex", 
+                    "email": email, 
+                    "phone": phone
+                }
 
         except Exception:
             pass
@@ -101,7 +116,6 @@ class GoogleScraper(BaseScraper):
             service = build("customsearch", "v1", developerKey=api_key)
 
             # Fetch up to 3 pages (30 results) to process
-            # Google API is expensive/limited, so we don't do 100 pages.
             for p in range(0, 10): 
                 start_index = (p * 10) + 1
                 print(f"   >>> Fetching Page {p + 1} from Google API...")
@@ -154,21 +168,18 @@ class GoogleScraper(BaseScraper):
                                     industry = d.get('industry')
                                     source = f"Google (AI: {industry})" if industry else "Google (AI)"
                                 else:
-                                    email = result['email']
+                                    email = result.get('email')
                                     name = site_info['title']
-                                    phone = None
+                                    phone = result.get('phone')
                                     loc = location
                                     source = "Google (Deep)"
-
-                                # Format Location
-                                if phone and phone != "N/A":
-                                    loc = f"{loc} | 📞 {phone}"
 
                                 if email and email not in found_emails:
                                     found_emails.add(email)
                                     leads.append({
                                         "Name": name,
                                         "Email": email,
+                                        "Phone": phone, # <--- SEPARATE FIELD
                                         "Website": site_info['link'],
                                         "Location": loc,
                                         "Source": source

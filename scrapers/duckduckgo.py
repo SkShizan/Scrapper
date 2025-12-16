@@ -11,8 +11,11 @@ import os
 from ai_extractor import extract_business_info
 
 class DuckDuckGoScraper(BaseScraper):
-    # Improved Regex: Limits TLD length to 6 chars (e.g., .com, .museum)
+    # Improved Regex: Limits TLD length to 6 chars
     EMAIL_REGEX = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,10}\b"
+
+    # Regex for Phone (Matches common US/International formats)
+    PHONE_REGEX = r"(\+\d{1,2}\s?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}"
 
     JUNK_DOMAINS = {
         'duckduckgo.com', 'google.com', 'microsoft.com', 'yahoo.com', 
@@ -49,6 +52,15 @@ class DuckDuckGoScraper(BaseScraper):
             if domain not in self.JUNK_DOMAINS:
                 if not email.lower().endswith(('.png', '.jpg', '.gif', '.svg', '.webp')):
                     return email
+        return None
+
+    def _extract_phone(self, text):
+        """Extracts the first valid looking phone number via Regex."""
+        if not text: return None
+        # Use a simpler regex to grab the most common format (xxx-xxx-xxxx)
+        matches = re.findall(r"\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}", text)
+        if matches:
+            return matches[0].strip()
         return None
 
     def _get_page_content(self, url):
@@ -115,6 +127,7 @@ class DuckDuckGoScraper(BaseScraper):
 
             # FALLBACK: Standard Regex Mode
             found_candidates = set()
+            found_phone = self._extract_phone(page_text)
 
             for link in soup.select('a[href^="mailto:"]'):
                 raw = link.get('href').replace('mailto:', '').split('?')[0]
@@ -128,6 +141,10 @@ class DuckDuckGoScraper(BaseScraper):
             if contact_url:
                 soup_contact = self._get_page_content(contact_url)
                 if soup_contact:
+                    # Try to find phone on contact page if not found on home
+                    if not found_phone:
+                        found_phone = self._extract_phone(soup_contact.get_text(separator=' '))
+
                     for link in soup_contact.select('a[href^="mailto:"]'):
                         raw = link.get('href').replace('mailto:', '').split('?')[0]
                         cleaned = self._extract_email(raw)
@@ -140,7 +157,13 @@ class DuckDuckGoScraper(BaseScraper):
             best_email = self._get_best_email(found_candidates, domain)
 
             if best_email:
-                return {"type": "regex", "data": {"email": best_email}}
+                return {
+                    "type": "regex", 
+                    "data": {
+                        "email": best_email,
+                        "phone": found_phone
+                    }
+                }
 
         except Exception:
             return None
@@ -159,7 +182,9 @@ class DuckDuckGoScraper(BaseScraper):
         # We can add more specific terms to find contact pages
         permutations = [
             f"{base_query} email",
-            f"{base_query} \"contact us\""
+            f"{base_query} \"contact us\"",
+            f"{base_query} \"@gmail.com\"",
+            f"{base_query} \"info@\""
         ]
 
         backends = ['api', 'html']
@@ -234,21 +259,21 @@ class DuckDuckGoScraper(BaseScraper):
                                 source_label = f"DuckDuckGo (AI: {industry})" if industry else "DuckDuckGo (AI)"
                             else:
                                 name = site['title']
-                                phone = None
+                                phone = data.get('phone') # Get phone from regex
                                 address = location
                                 source_label = "DuckDuckGo (Deep)"
 
-                            loc_string = address
-                            if phone and phone != "N/A":
-                                loc_string = f"{address} | Ph: {phone}"
+                            # We NO LONGER merge Phone into Location
+                            # loc_string = f"{address} | Ph: {phone}" (DELETED)
 
                             if email and email not in found_emails:
                                 found_emails.add(email)
                                 leads.append({
                                     "Name": name,
                                     "Email": email,
+                                    "Phone": phone, # <--- SEPARATE FIELD
                                     "Website": site['link'],
-                                    "Location": loc_string,
+                                    "Location": address,
                                     "Source": source_label
                                 })
                     except Exception:

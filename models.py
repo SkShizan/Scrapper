@@ -107,6 +107,7 @@ class Lead(db.Model):
     
     name = db.Column(db.String(255), nullable=False)
     email = db.Column(db.String(255), nullable=True)
+    phone = db.Column(db.String(50))
     website = db.Column(db.String(500), nullable=True)
     location = db.Column(db.String(255), nullable=True)
     source = db.Column(db.String(50), nullable=True)
@@ -117,6 +118,7 @@ class Lead(db.Model):
         return {
             'Name': self.name,
             'Email': self.email or 'N/A',
+            'Phone': self.phone,
             'Website': self.website or 'N/A',
             'Location': self.location or 'N/A',
             'Source': self.source or 'N/A'

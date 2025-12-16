@@ -287,6 +287,7 @@ def handle_search():
             user_id=current_user.id,
             name=lead_data.get('Name', 'Unknown'),
             email=lead_data.get('Email'),
+            phone=lead_data.get('Phone', 'N/A'),
             website=lead_data.get('Website'),
             location=lead_data.get('Location'),
             source=lead_data.get('Source')
@@ -314,7 +315,7 @@ def handle_download():
     leads_data = [lead.to_dict() for lead in leads]
     df = pd.DataFrame(leads_data)
 
-    columns = ['Name', 'Email', 'Website', 'Location', 'Source']
+    columns = ['Name', 'Email', 'Phone', 'Website', 'Location', 'Source']
     for col in columns:
         if col not in df.columns:
             df[col] = ''

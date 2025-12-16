@@ -109,12 +109,12 @@
                 <label for="cx-input" class="form-label">Custom Search Engine Key</label>
                 <input type="text" id="cx-input" class="form-control" placeholder="Required for Official API">
             </div>
-            
+
             <div class="col-md-12">
                 <label for="location-input" class="form-label">Target Location</label>
                 <input type="text" id="location-input" class="form-control" placeholder="e.g., 'Las Vegas', 'New York'">
             </div>
-            
+
             <div class="col-md-12">
                 <label for="platform-select" class="form-label">Source Platform</label>
                 <select id="platform-select" class="form-select">
@@ -143,12 +143,12 @@
                     </div>
                 </div>
             </div>
-            
+
             <div class="col-md-12">
                 <label for="query-input" class="form-label">Search Query</label>
                 <input type="text" id="query-input" class="form-control" value='"Healthcare" "email"'>
             </div>
-            
+
             <div class="col-12 d-flex justify-content-between align-items-center border-top pt-4 mt-3">
                 <button id="search-btn" class="btn btn-search btn-lg">
                     <i class="bi bi-search me-2"></i>Start Search
@@ -179,7 +179,7 @@
                 <tr>
                     <th class="ps-4">Name</th>
                     <th>Email</th>
-                    <th>Website</th>
+                    <th>Phone</th> <th>Website</th>
                     <th class="pe-4">Info / Source</th>
                 </tr>
             </thead>
@@ -189,7 +189,7 @@
                     <tr>
                         <td class="ps-4 fw-bold">{{ lead.name }}</td>
                         <td>{{ lead.email }}</td>
-                        <td>
+                        <td>{{ lead.phone if lead.phone else 'N/A' }}</td> <td>
                             <a href="{{ lead.website }}" target="_blank">
                                 {{ lead.website if lead.website and lead.website != 'N/A' else 'N/A' }}
                             </a>
@@ -224,18 +224,18 @@
     const queryInput = document.getElementById('query-input');
     const locationInput = document.getElementById('location-input');
     const platformSelect = document.getElementById('platform-select');
-    
+
     // UI Elements for Toggle
     const methodSection = document.getElementById('method-section');
     const apiInputs = document.querySelectorAll('.api-inputs');
     const methodRadios = document.getElementsByName('searchMethod');
-    
+
     const searchBtn = document.getElementById('search-btn');
     const loadNextBtn = document.getElementById('load-next-btn');
     const downloadBtn = document.getElementById('download-btn');
     const clearBtn = document.getElementById('clear-btn');
     const statusText = document.getElementById('status-text');
-    
+
     const resultsTbody = document.getElementById('results-tbody');
     const paginationControls = document.getElementById('pagination-controls');
     const pageInfo = document.getElementById('page-info');
@@ -246,10 +246,10 @@
         // Count the rows that Jinja2 rendered
         const existingRows = resultsTbody.getElementsByTagName('tr');
         totalLeads = existingRows.length;
-        
+
         // Update the UI
         resultsCountBadge.innerText = `${totalLeads} Leads`;
-        
+
         // Show download/clear buttons if we have data
         if (totalLeads > 0) {
             downloadBtn.style.display = 'inline-block';
@@ -262,19 +262,19 @@
     function updateUI() {
         const platform = platformSelect.value;
         const isYellowPages = platform === 'yellowpages';
-        
+
         if (isYellowPages) {
             methodSection.style.display = 'none';
             apiInputs.forEach(el => el.style.display = 'none');
         } else {
             methodSection.style.display = 'block';
-            
+
             // Check which method is selected
             let isFreeMode = false;
             for (const radio of methodRadios) {
                 if (radio.checked && radio.value === 'ddg') isFreeMode = true;
             }
-            
+
             // Hide API inputs if Free Mode is selected
             apiInputs.forEach(el => el.style.display = isFreeMode ? 'none' : 'block');
         }
@@ -282,7 +282,7 @@
 
     platformSelect.addEventListener('change', updateUI);
     methodRadios.forEach(radio => radio.addEventListener('change', updateUI));
-    
+
     // Call once on load
     updateUI();
 
@@ -291,7 +291,7 @@
 
     clearBtn.addEventListener('click', async () => {
         if (!confirm('Are you sure you want to clear all your leads? This cannot be undone.')) return;
-        
+
         try {
             const response = await fetch('/clear-leads', { method: 'POST' });
             if (response.ok) {
@@ -313,7 +313,7 @@
         const platform = platformSelect.value;
         const apiKey = apiKeyInput.value;
         const cx = cxInput.value;
-        
+
         // Get selected method
         let searchMethod = 'api';
         for (const radio of methodRadios) {
@@ -329,14 +329,14 @@
                 statusText.style.color = 'var(--color-danger)';
                 return;
             }
-            
+
             // Only require API key if NOT YellowPages AND NOT Free Mode
             if (platform !== 'yellowpages' && searchMethod === 'api' && (!apiKey || !cx)) {
                 statusText.innerText = 'Error: API Key and CX ID are required for Official API mode.';
                 statusText.style.color = 'var(--color-danger)';
                 return;
             }
-            
+
             paginationControls.style.display = 'none';
         }
 
@@ -344,7 +344,7 @@
         const originalBtnText = activeBtn.innerHTML;
         activeBtn.disabled = true;
         activeBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Scraping...';
-        
+
         let methodText = (platform === 'yellowpages') ? 'Direct' : (searchMethod === 'api' ? 'API' : 'Free');
         statusText.innerText = `Scraping Page ${page} from ${platform} (${methodText})...`;
         statusText.style.color = 'var(--text-muted)';
@@ -381,7 +381,7 @@
                     row.innerHTML = `
                         <td class="ps-4 fw-bold">${lead.Name}</td>
                         <td>${lead.Email}</td>
-                        <td><a href="${lead.Website}" target="_blank">${lead.Website !== 'N/A' ? lead.Website : 'N/A'}</a></td>
+                        <td>${lead.Phone || 'N/A'}</td> <td><a href="${lead.Website}" target="_blank">${lead.Website !== 'N/A' ? lead.Website : 'N/A'}</a></td>
                         <td class="pe-4 small text-muted">${lead.Source}<br>${lead.Location}</td>
                     `;
                 });
@@ -389,7 +389,7 @@
                 totalLeads += leads.length;
                 resultsCountBadge.innerText = `${totalLeads} Leads`;
                 downloadBtn.style.display = 'inline-block';
-                
+
                 statusText.innerText = `Success! Stacked ${leads.length} leads from Page ${page} last search ${currentLocation}. `;
                 statusText.style.color = 'var(--color-success)';
 

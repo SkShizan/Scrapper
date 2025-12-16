@@ -55,9 +55,7 @@ class SocialMediaScraper(BaseScraper):
         # ---------------------------------------------------------
         if self.backend == 'google':
             # Delegate to existing Google Scraper
-            # Note: GoogleScraper likely returns a list of dicts. 
-            # If you want AI on Google results, you would need to modify GoogleScraper too.
-            # For now, we assume it returns standard data.
+            # The GoogleScraper has already been updated to return 'Phone' in its results.
             return self.scraper.search(dork_query, location, api_key, cx, page)
 
         # ---------------------------------------------------------
@@ -88,6 +86,7 @@ class SocialMediaScraper(BaseScraper):
 
                     email = "N/A"
                     name = title
+                    phone = "N/A" # Default
                     source_label = f"Social ({self.platform})"
 
                     # --- 1. AI EXTRACTION (Snippet) ---
@@ -103,6 +102,10 @@ class SocialMediaScraper(BaseScraper):
                                 # For social, business_name often equals the Person's Name or Page Title
                                 name = ai_data.get('business_name')
 
+                            # Extract Phone
+                            if ai_data.get('phone'):
+                                phone = ai_data.get('phone')
+
                             # Add Job/Industry to source
                             if ai_data.get('industry'):
                                 source_label = f"{self.platform} (AI: {ai_data.get('industry')})"
@@ -116,13 +119,13 @@ class SocialMediaScraper(BaseScraper):
                             email = emails[0] # Take the first one found
 
                     # Add to list if we found an email or if it's a valid profile 
-                    # (You can choose to filter only those with emails)
                     if email != "N/A": 
                         leads.append({
                             "Name": name,
                             "Email": email,
+                            "Phone": phone, # <--- NEW FIELD
                             "Website": link,
-                            "Location": location, # Social profiles don't always have clear location in snippet
+                            "Location": location,
                             "Source": source_label
                         })
 
