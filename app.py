@@ -17,9 +17,6 @@ from scrapers.duckduckgo import DuckDuckGoScraper
 
 app = Flask(__name__)
 app.config.from_object(Config)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///leadscaper.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
 db.init_app(app)
 
 login_manager = LoginManager()
@@ -479,8 +476,8 @@ def toggle_super_admin(user_id):
 
 
 def create_superuser():
-    admin_email = os.environ.get('ADMIN_EMAIL', 'shizankhan011@gmail.com')
-    admin_password = os.environ.get('ADMIN_PASSWORD', 'Nafis@@123##456')
+    admin_email = os.environ.get('ADMIN_EMAIL')
+    admin_password = os.environ.get('ADMIN_PASSWORD')
 
     existing = User.query.filter_by(email=admin_email).first()
     if not existing:

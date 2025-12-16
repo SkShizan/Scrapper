@@ -11,6 +11,9 @@ class Config:
     
     SECRET_KEY = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
     DEBUG = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
+
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///leadscaper.db'
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # Credentials
     GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY')

@@ -26,3 +26,4 @@ Werkzeug
 wtforms
 ddgs
 google-generativeai
+psycopg2-binary
