@@ -3,7 +3,9 @@ from curl_cffi import requests
 from bs4 import BeautifulSoup
 import re
 from urllib.parse import urljoin
+import os
 from .base_scraper import BaseScraper
+from ai_extractor import extract_business_info
 
 class YellowPagesScraper(BaseScraper):
     # Regex for finding emails in text
@@ -50,7 +52,6 @@ class YellowPagesScraper(BaseScraper):
         """
         if not yp_url: return None
 
-        # print(f"   --> Checking YP Profile: {yp_url}") # Quiet mode
         try:
             response = requests.get(yp_url, impersonate="chrome110", timeout=10)
             if response.status_code != 200: return None
@@ -82,7 +83,8 @@ class YellowPagesScraper(BaseScraper):
 
     def _scrape_external_website(self, url):
         """
-        Visits the business's own website to find emails.
+        Visits the business's own website to find emails using AI or Regex.
+        Returns a DICTIONARY with type and data.
         """
         if not url or "yellowpages.com" in url or url == "N/A": return None
 
@@ -90,25 +92,49 @@ class YellowPagesScraper(BaseScraper):
         try:
             response = requests.get(url, impersonate="chrome110", timeout=10)
             soup = BeautifulSoup(response.content, 'html.parser')
+            page_text = soup.get_text(separator=' ', strip=True)
+
+            # ---------------------------------------------------------
+            # AI MODE: Gemini Integration
+            # ---------------------------------------------------------
+            if os.environ.get('GEMINI_API_KEY'):
+                ai_data = extract_business_info(page_text, url)
+                if ai_data and (ai_data.get('email') or ai_data.get('phone')):
+                    return {
+                        "type": "ai",
+                        "data": ai_data
+                    }
+            # ---------------------------------------------------------
+
+            # FALLBACK: Standard Logic
+            found_email = None
 
             # 1. Check for Cloudflare Encrypted Links
             cf_links = soup.select('a[href*="/cdn-cgi/l/email-protection"]')
             for link in cf_links:
                 decoded = self._decode_cf_email(link['href'])
                 if decoded and not self._is_junk_email(decoded):
-                    return decoded
+                    found_email = decoded
+                    break
 
             # 2. Check Home Page for 'mailto:'
-            for link in soup.select('a[href^="mailto:"]'):
-                email = link.get('href').replace('mailto:', '').split('?')[0]
-                if not self._is_junk_email(email):
-                    return email
+            if not found_email:
+                for link in soup.select('a[href^="mailto:"]'):
+                    email = link.get('href').replace('mailto:', '').split('?')[0]
+                    if not self._is_junk_email(email):
+                        found_email = email
+                        break
 
             # 3. Check regex in text
-            text_emails = set(re.findall(self.EMAIL_REGEX, soup.get_text()))
-            for email in text_emails:
-                if not self._is_junk_email(email):
-                    return email
+            if not found_email:
+                text_emails = set(re.findall(self.EMAIL_REGEX, page_text))
+                for email in text_emails:
+                    if not self._is_junk_email(email):
+                        found_email = email
+                        break
+
+            if found_email:
+                return {"type": "regex", "email": found_email}
 
         except Exception:
             pass
@@ -160,7 +186,7 @@ class YellowPagesScraper(BaseScraper):
 
             # --- SCRAPE CARDS ---
             for card in cards:
-                # Basic Info
+                # Basic Info from Yellow Pages
                 name_tag = card.select_one('.business-name')
                 name = name_tag.get_text(strip=True) if name_tag else "Unknown"
 
@@ -175,23 +201,52 @@ class YellowPagesScraper(BaseScraper):
                 external_website = web_tag['href'] if web_tag else "N/A"
 
                 email = "N/A"
+                source_note = f"YellowPages (Pg {page})"
 
                 # 1. STRATEGY A: Check Internal YP Profile First
                 if yp_full_url:
-                    email = self._scrape_yp_internal_profile(yp_full_url)
+                    email = self._scrape_yp_internal_profile(yp_full_url) or "N/A"
 
-                # 2. STRATEGY B: Fallback to External Website
-                if not email or email == "N/A":
-                    if external_website != "N/A":
-                        found = self._scrape_external_website(external_website)
-                        if found: email = found
+                # 2. STRATEGY B: Check External Website (Deep Scrape / AI)
+                # We check this if email is missing OR if we want to enrich the data with AI
+                if external_website != "N/A" and (email == "N/A" or os.environ.get('GEMINI_API_KEY')):
+
+                    # If we already have an email, we only query AI if we strictly want to valid/enrich
+                    # For optimization, let's say we always check if we have an API key to get better Names/Industry
+
+                    found_data = self._scrape_external_website(external_website)
+
+                    if found_data:
+                        if found_data['type'] == 'ai':
+                            d = found_data['data']
+
+                            # Prioritize AI Email if found
+                            if d.get('email'): 
+                                email = d.get('email')
+
+                            # Enrich Name (YP names are sometimes truncated)
+                            if d.get('business_name'): 
+                                name = d.get('business_name')
+
+                            # Enrich Phone
+                            if d.get('phone'):
+                                phone = d.get('phone')
+
+                            # Add Industry to Source
+                            if d.get('industry'):
+                                source_note = f"YP (AI: {d.get('industry')})"
+
+                        elif found_data['type'] == 'regex':
+                            # Only overwrite if we didn't have one
+                            if email == "N/A":
+                                email = found_data['email']
 
                 results.append({
                     "Name": name,
                     "Email": email,
                     "Website": external_website,
                     "Location": f"{location} (Ph: {phone})",
-                    "Source": f"YellowPages (Pg {page})"
+                    "Source": source_note
                 })
 
             # RETURN STRUCTURE WITH METADATA

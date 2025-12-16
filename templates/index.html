@@ -183,7 +183,24 @@
                     <th class="pe-4">Info / Source</th>
                 </tr>
             </thead>
-            <tbody id="results-tbody"></tbody>
+            <tbody id="results-tbody">
+                {% if leads %}
+                    {% for lead in leads %}
+                    <tr>
+                        <td class="ps-4 fw-bold">{{ lead.name }}</td>
+                        <td>{{ lead.email }}</td>
+                        <td>
+                            <a href="{{ lead.website }}" target="_blank">
+                                {{ lead.website if lead.website and lead.website != 'N/A' else 'N/A' }}
+                            </a>
+                        </td>
+                        <td class="pe-4 small text-muted">
+                            {{ lead.source }}<br>{{ lead.location }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% endif %}
+            </tbody>
         </table>
     </div>
     <div id="pagination-controls">
@@ -223,6 +240,23 @@
     const paginationControls = document.getElementById('pagination-controls');
     const pageInfo = document.getElementById('page-info');
     const resultsCountBadge = document.getElementById('results-count');
+
+    // NEW: Initialize state from server-rendered content
+    document.addEventListener('DOMContentLoaded', () => {
+        // Count the rows that Jinja2 rendered
+        const existingRows = resultsTbody.getElementsByTagName('tr');
+        totalLeads = existingRows.length;
+        
+        // Update the UI
+        resultsCountBadge.innerText = `${totalLeads} Leads`;
+        
+        // Show download/clear buttons if we have data
+        if (totalLeads > 0) {
+            downloadBtn.style.display = 'inline-block';
+            statusText.innerText = `Loaded ${totalLeads} stacked leads from database.`;
+            statusText.style.color = 'var(--text-muted)';
+        }
+    });
 
     // UI Logic: Show/Hide controls based on selection
     function updateUI() {
@@ -356,7 +390,7 @@
                 resultsCountBadge.innerText = `${totalLeads} Leads`;
                 downloadBtn.style.display = 'inline-block';
                 
-                statusText.innerText = `Success! Stacked ${leads.length} leads from Page ${page}.`;
+                statusText.innerText = `Success! Stacked ${leads.length} leads from Page ${page} last search ${currentLocation}. `;
                 statusText.style.color = 'var(--color-success)';
 
                 if (meta.has_next) {

@@ -25,3 +25,4 @@ requests
 Werkzeug
 wtforms
 ddgs
+google-generativeai

@@ -7,10 +7,11 @@ import re
 import time
 import concurrent.futures
 from urllib.parse import urlparse, urljoin
+import os
+from ai_extractor import extract_business_info
 
 class DuckDuckGoScraper(BaseScraper):
-    # Improved Regex: Limits TLD length to 6 chars (e.g., .com, .museum) to stop "comHOMESERVICES"
-    # Also stops capturing if it hits an uppercase letter after the dot (e.g. .comTel -> .com)
+    # Improved Regex: Limits TLD length to 6 chars (e.g., .com, .museum)
     EMAIL_REGEX = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,10}\b"
 
     JUNK_DOMAINS = {
@@ -30,30 +31,18 @@ class DuckDuckGoScraper(BaseScraper):
     def _extract_email(self, text):
         """Extracts and cleans the first valid email found in text."""
         if not text: return None
-
-        # Regex findall
         emails = re.findall(self.EMAIL_REGEX, text, re.IGNORECASE)
 
         for email in emails:
-            # 1. Clean whitespace and path characters
-            email = email.strip()
-            email = email.lstrip('/.:') 
-            email = email.rstrip('.,;:|')
-
-            # 2. Remove known attached garbage words
-            # This handles cases where regex might have grabbed a bit too much
+            email = email.strip().lstrip('/.:').rstrip('.,;:|')
             for suffix in self.GARBAGE_SUFFIXES:
                 if email.endswith(suffix):
                     email = email[:-len(suffix)]
-                # Check for Uppercase suffix sticking to lowercase TLD (e.g. .comTel)
-                # If we have .comTel, split at the capital T
                 match = re.search(r'(\.[a-z]+)([A-Z].*)', email)
                 if match:
                     email = email.replace(match.group(2), "")
 
-            # 3. Final clean
             email = email.rstrip('.,;:|')
-
             if '@' not in email: continue
 
             domain = email.split('@')[-1].lower()
@@ -104,46 +93,54 @@ class DuckDuckGoScraper(BaseScraper):
         return list(email_list)[0]
 
     def _visit_website(self, url):
+        """Visits website and uses AI (Gemini) or Regex to extract data."""
         if not url or url.lower().endswith(self.JUNK_EXTENSIONS): return None
         try:
             domain = urlparse(url).netloc
             if any(junk in domain for junk in self.JUNK_DOMAINS): return None
 
-            found_candidates = set()
-
             soup = self._get_page_content(url)
             if not soup: return None
 
-            # --- FIX: Use separator=' ' to prevent text merging ---
-            page_text = soup.get_text(separator=' ')
+            page_text = soup.get_text(separator=' ', strip=True)
 
-            # Scrape Links
+            # ---------------------------------------------------------
+            # AI MODE: Gemini Integration
+            # ---------------------------------------------------------
+            if os.environ.get('GEMINI_API_KEY'):
+                ai_data = extract_business_info(page_text, url)
+                if ai_data and (ai_data.get('email') or ai_data.get('phone')):
+                    return {"type": "ai", "data": ai_data}
+            # ---------------------------------------------------------
+
+            # FALLBACK: Standard Regex Mode
+            found_candidates = set()
+
             for link in soup.select('a[href^="mailto:"]'):
                 raw = link.get('href').replace('mailto:', '').split('?')[0]
                 cleaned = self._extract_email(raw)
                 if cleaned: found_candidates.add(cleaned)
 
-            # Scrape Text (using the separated text)
             text_email = self._extract_email(page_text)
             if text_email: found_candidates.add(text_email)
 
-            # Level 2: Contact Page
             contact_url = self._find_contact_link(soup, url)
             if contact_url:
                 soup_contact = self._get_page_content(contact_url)
                 if soup_contact:
-                    # Scrape Links
                     for link in soup_contact.select('a[href^="mailto:"]'):
                         raw = link.get('href').replace('mailto:', '').split('?')[0]
                         cleaned = self._extract_email(raw)
                         if cleaned: found_candidates.add(cleaned)
 
-                    # Scrape Text (using separator)
                     page_text_sub = soup_contact.get_text(separator=' ')
                     text_email_sub = self._extract_email(page_text_sub)
                     if text_email_sub: found_candidates.add(text_email_sub)
 
-            return self._get_best_email(found_candidates, domain)
+            best_email = self._get_best_email(found_candidates, domain)
+
+            if best_email:
+                return {"type": "regex", "data": {"email": best_email}}
 
         except Exception:
             return None
@@ -159,11 +156,10 @@ class DuckDuckGoScraper(BaseScraper):
 
         base_query = f"{query} {location}"
 
+        # We can add more specific terms to find contact pages
         permutations = [
             f"{base_query} email",
-            f"{base_query} \"contact us\"",
-            f"{base_query} \"@gmail.com\"",
-            f"{base_query} \"info@\""
+            f"{base_query} \"contact us\""
         ]
 
         backends = ['api', 'html']
@@ -183,13 +179,11 @@ class DuckDuckGoScraper(BaseScraper):
                         ))
 
                     if results:
-                        new_count = 0
                         for res in results:
                             link = res.get('href', 'N/A')
                             if link != 'N/A' and link not in seen_urls:
                                 seen_urls.add(link)
                                 raw_results.append(res)
-                                new_count += 1
                     time.sleep(1)
                 except Exception:
                     pass
@@ -200,15 +194,19 @@ class DuckDuckGoScraper(BaseScraper):
         for res in raw_results:
             title = res.get('title', 'Unknown')
             link = res.get('href', 'N/A')
-            # Note: We rely on Deep Scraping for clean emails, bypassing the snippet check
-            # because snippets often contain the same "merged text" issues.
             sites_to_visit.append({"link": link, "title": title})
 
         if sites_to_visit:
             total_sites = len(sites_to_visit)
-            print(f"   --> Deep Scraping {total_sites} websites (Smart Cleaning)...")
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+            # --- IMPORTANT: THROTTLING FOR FREE AI ---
+            # Gemini Free Tier allows 15 requests per minute.
+            # We set max_workers=4 so we don't hit the rate limit instantly.
+            workers = 4 if os.environ.get('GEMINI_API_KEY') else 20
+
+            print(f"   --> Deep Scraping {total_sites} sites (Workers: {workers})...")
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
                 future_to_site = {
                     executor.submit(self._visit_website, site['link']): site 
                     for site in sites_to_visit
@@ -219,20 +217,40 @@ class DuckDuckGoScraper(BaseScraper):
                     site = future_to_site[future]
                     completed_count += 1
 
-                    if completed_count % 10 == 0:
+                    if completed_count % 5 == 0:
                         print(f"      [{completed_count}/{total_sites}] Scanned {site['link'][:40]}...")
 
                     try:
-                        email = future.result()
-                        if email and email not in found_emails:
-                            found_emails.add(email)
-                            leads.append({
-                                "Name": site['title'],
-                                "Email": email,
-                                "Website": site['link'],
-                                "Location": location,
-                                "Source": "DuckDuckGo (Deep)"
-                            })
+                        result = future.result()
+                        if result:
+                            data = result['data']
+                            email = data.get('email')
+
+                            if result['type'] == 'ai':
+                                name = data.get('business_name') or site['title']
+                                phone = data.get('phone')
+                                address = data.get('location') or location
+                                industry = data.get('industry')
+                                source_label = f"DuckDuckGo (AI: {industry})" if industry else "DuckDuckGo (AI)"
+                            else:
+                                name = site['title']
+                                phone = None
+                                address = location
+                                source_label = "DuckDuckGo (Deep)"
+
+                            loc_string = address
+                            if phone and phone != "N/A":
+                                loc_string = f"{address} | Ph: {phone}"
+
+                            if email and email not in found_emails:
+                                found_emails.add(email)
+                                leads.append({
+                                    "Name": name,
+                                    "Email": email,
+                                    "Website": site['link'],
+                                    "Location": loc_string,
+                                    "Source": source_label
+                                })
                     except Exception:
                         pass
 

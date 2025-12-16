@@ -222,7 +222,8 @@ def logout():
 @login_required
 @approved_required
 def index():
-    return render_template('index.html')
+    user_leads = Lead.query.filter_by(user_id=current_user.id).order_by(Lead.created_at.desc()).all()
+    return render_template('index.html', leads=user_leads)
 
 
 @app.route('/search', methods=['POST'])
